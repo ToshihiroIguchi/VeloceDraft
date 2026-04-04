@@ -30,6 +30,7 @@ export type ElectrodeArray = EntityBase & {
   countY: number;
   pitchX: number;
   pitchY: number;
+  staggerX: number;
 };
 
 export type Line = EntityBase & {

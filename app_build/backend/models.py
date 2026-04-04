@@ -32,6 +32,7 @@ class ElectrodeArray(EntityBase):
     countY: int = 1
     pitchX: float
     pitchY: float = 0.0
+    staggerX: float = 0.0
 
 class Line(EntityBase):
     type: Literal["line"]

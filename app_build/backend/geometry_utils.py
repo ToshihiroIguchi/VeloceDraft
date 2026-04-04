@@ -73,10 +73,12 @@ def get_segments(drawing: DrawingModel) -> List[Tuple[Vector2, Vector2]]:
                 for ix in range(entity.countX):
                     for iy in range(entity.countY):
                         offsetX = entity.origin.x + (ix * entity.pitchX)
+                        if iy % 2 == 1:
+                            offsetX += getattr(entity, "staggerX", 0)
                         offsetY = entity.origin.y + (iy * entity.pitchY)
                         sc = source.center
                         # Recursively handle arrayed entity (ignoring nested arrays for simplicity)
-                        temp_e = source.copy(update={"center": {"x": sc.x + offsetX, "y": sc.y + offsetY}})
+                        temp_e = source.copy(update={"center": Point(x=sc.x + offsetX, y=sc.y + offsetY)})
                         # Extract segments manually for this temp entity
                         if temp_e.type == "rect":
                             c, w, h = temp_e.center, temp_e.width, temp_e.height

@@ -104,9 +104,11 @@ def _create_dxf_doc(drawing: DrawingModel):
                 for ix in range(entity.countX):
                     for iy in range(entity.countY):
                         offsetX = entity.origin.x + (ix * entity.pitchX)
+                        if iy % 2 == 1:
+                            offsetX += entity.staggerX
                         offsetY = entity.origin.y + (iy * entity.pitchY)
                         sc = source.center
-                        shifted_entity = source.copy(update={"center": {"x": sc.x + offsetX, "y": sc.y + offsetY}})
+                        shifted_entity = source.copy(update={"center": Point(x=sc.x + offsetX, y=sc.y + offsetY)})
                         if source.type == "roundedRect":
                             _add_rounded_rect(msp, shifted_entity)
                         elif source.type == "arc":

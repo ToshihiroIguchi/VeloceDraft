@@ -89,6 +89,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
       countY: 1,
       pitchX: 20,
       pitchY: 0,
+      staggerX: 0,
       visible: true
     };
     dispatch({ type: 'ADD_ENTITY', entity: arr });

@@ -80,6 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
                   <label style={{ fontSize: '12px', color: '#666' }}>Count Y: <input type="number" value={arr.countY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { countY: parseInt(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
                   <label style={{ fontSize: '12px', color: '#666' }}>Pitch X: <input type="number" value={arr.pitchX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchX: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
                   <label style={{ fontSize: '12px', color: '#666' }}>Pitch Y: <input type="number" value={arr.pitchY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchY: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                  <label style={{ fontSize: '12px', color: '#666' }}>Stagger X: <input type="number" value={arr.staggerX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { staggerX: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
                 </div>
               </div>
             );

@@ -87,7 +87,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           for (let i = 0; i < entity.countX; i++) {
             for (let j = 0; j < entity.countY; j++) {
               const obj = new fabric.Rect({
-                left: source.center.x - source.width/2 + entity.origin.x + (i * entity.pitchX),
+                left: source.center.x - source.width/2 + entity.origin.x + (i * entity.pitchX) + (j % 2 === 1 ? entity.staggerX : 0),
                 top: source.center.y - source.height/2 + entity.origin.y + (j * entity.pitchY),
                 width: source.width,
                 height: source.height,
@@ -423,8 +423,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
 
     function handleSelection(opt: fabric.IEvent) {
       // @ts-ignore
-      const ids = opt.selected?.map(o => o.id).filter(id => id) || [];
-      dispatch({ type: 'SET_SELECTED', entityIds: ids });
+      const ids = opt.selected?.map(o => o.id?.split('_')[0]).filter(id => id) || [];
+      const uniqueIds = Array.from(new Set(ids));
+      dispatch({ type: 'SET_SELECTED', entityIds: uniqueIds });
     }
 
   }, [fabricCanvas, state.currentTool, state.activeLayerId, dispatch]);
