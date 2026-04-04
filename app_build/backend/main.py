@@ -1,0 +1,178 @@
+import ezdxf
+from ezdxf.addons.drawing import RenderContext, Frontend
+from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+import matplotlib.pyplot as plt
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import Response, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from models import DrawingModel, Entity, RoundedRect, ElectrodeArray, Rect, Line
+import io
+import uuid
+
+app = FastAPI(title="VeloceDraft API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False, # Use False with * for simple origin sharing if appropriate
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.post("/api/dxf/export")
+async def export_dxf(drawing: DrawingModel):
+    doc = _create_dxf_doc(drawing)
+    out = io.StringIO()
+    doc.write(out)
+    return Response(content=out.getvalue(), media_type="application/dxf", headers={"Content-Disposition": "attachment; filename=export.dxf"})
+
+@app.post("/api/svg/export")
+async def export_svg(drawing: DrawingModel):
+    from ezdxf.addons.drawing.svg import SVGBackend
+    doc = _create_dxf_doc(drawing)
+    msp = doc.modelspace()
+    ctx = RenderContext(doc)
+    out = io.StringIO()
+    backend = SVGBackend()
+    Frontend(ctx, backend).draw_layout(msp)
+    svg_string = backend.get_xml()
+    return Response(content=svg_string, media_type="image/svg+xml", headers={"Content-Disposition": "attachment; filename=export.svg"})
+
+@app.post("/api/pdf/export")
+async def export_pdf(drawing: DrawingModel):
+    doc = _create_dxf_doc(drawing)
+    msp = doc.modelspace()
+    ctx = RenderContext(doc)
+    fig = plt.figure()
+    ax = fig.add_axes([0, 0, 1, 1])
+    backend = MatplotlibBackend(ax)
+    Frontend(ctx, backend).draw_layout(msp)
+    
+    buf = io.BytesIO()
+    fig.savefig(buf, format='pdf')
+    plt.close(fig)
+    return Response(content=buf.getvalue(), media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=export.pdf"})
+
+def _create_dxf_doc(drawing: DrawingModel):
+    doc = ezdxf.new('R2010')
+    msp = doc.modelspace()
+    for entity in drawing.entities:
+        if entity.type == "roundedRect":
+            _add_rounded_rect(msp, entity)
+        elif entity.type == "rect":
+            _add_rect(msp, entity)
+        elif entity.type == "electrodeArray":
+            source = next((e for e in drawing.entities if e.id == entity.sourceId), None)
+            if source:
+                for ix in range(entity.countX):
+                    for iy in range(entity.countY):
+                        offsetX = entity.origin.x + (ix * entity.pitchX)
+                        offsetY = entity.origin.y + (iy * entity.pitchY)
+                        sc = source.center
+                        shifted_entity = source.copy(update={"center": {"x": sc.x + offsetX, "y": sc.y + offsetY}})
+                        if source.type == "roundedRect":
+                            _add_rounded_rect(msp, shifted_entity)
+                        else:
+                            _add_rect(msp, shifted_entity)
+    return doc
+
+def _add_rect(msp, entity):
+    c, w, h = entity.center, entity.width, entity.height
+    msp.add_lwpolyline([
+        (c.x - w/2, c.y - h/2), (c.x + w/2, c.y - h/2),
+        (c.x + w/2, c.y + h/2), (c.x - w/2, c.y + h/2)
+    ], close=True)
+
+def _add_rounded_rect(msp, entity):
+    c, w, h, r = entity.center, entity.width, entity.height, entity.rx
+    # Simplified approximation for DXF MVP
+    points = [
+        (c.x - w/2 + r, c.y - h/2), (c.x + w/2 - r, c.y - h/2),
+        (c.x + w/2, c.y - h/2 + r), (c.x + w/2, c.y + h/2 - r),
+        (c.x + w/2 - r, c.y + h/2), (c.x - w/2 + r, c.y + h/2),
+        (c.x - w/2, c.y + h/2 - r), (c.x - w/2, c.y - h/2 + r)
+    ]
+    msp.add_lwpolyline(points, close=True)
+
+@app.post("/api/area/calculate")
+async def calculate_area(drawing: DrawingModel):
+    total_area = 0.0
+    for entity in drawing.entities:
+        if entity.type in ["roundedRect", "rect"]:
+            total_area += _get_entity_area(entity)
+        elif entity.type == "electrodeArray":
+            source = next((e for e in drawing.entities if e.id == entity.sourceId), None)
+            if source:
+                source_area = _get_entity_area(source)
+                total_area += source_area * (entity.countX * entity.countY)
+    return {"area": total_area}
+
+def _get_entity_area(e):
+    w, h, r = getattr(e, "width", 0), getattr(e, "height", 0), getattr(e, "rx", 0)
+    return w * h - (4 - 3.14159265) * (r * r)
+
+@app.post("/api/dxf/import")
+async def import_dxf(file: UploadFile = File(...)):
+    content = await file.read()
+    try:
+        doc = ezdxf.readb(io.BytesIO(content))
+        msp = doc.modelspace()
+        entities = []
+        for e in msp:
+            if e.dxftype() == 'LWPOLYLINE':
+                # Convert to simple rect if 4-8 points
+                points = e.get_points()
+                if len(points) >= 4:
+                    xs = [p[0] for p in points]
+                    ys = [p[1] for p in points]
+                    min_x, max_x = min(xs), max(xs)
+                    min_y, max_y = min(ys), max(ys)
+                    entities.append({
+                        "id": str(uuid.uuid4()),
+                        "layerId": "layer1",
+                        "type": "rect",
+                        "center": {"x": (min_x + max_x)/2, "y": (min_y + max_y)/2},
+                        "width": max_x - min_x,
+                        "height": max_y - min_y,
+                        "visible": True
+                    })
+        return {
+            "layers": [{"id": "layer1", "name": "Imported", "visible": True}],
+            "entities": entities,
+            "closedRegions": []
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/fillet")
+async def fillet_lines(line1: Line, line2: Line, radius: float):
+    # Calculate intersection of Two Lines
+    # Line 1: p1 -> p2, Line 2: p3 -> p4
+    p1, p2 = line1.start, line1.end
+    p3, p4 = line2.start, line2.end
+    
+    def intersect(p1, p2, p3, p4):
+        x1, y1 = p1.x, p1.y
+        x2, y2 = p2.x, p2.y
+        x3, y3 = p3.x, p3.y
+        x4, y4 = p4.x, p4.y
+        denom = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1)
+        if abs(denom) < 1e-9: return None
+        ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / denom
+        return {"x": x1 + ua*(x2-x1), "y": y1 + ua*(y2-y1)}
+
+    inter = intersect(p1, p2, p3, p4)
+    if not inter:
+        return {"message": "Lines are parallel", "entities": []}
+    
+    # Return modified lines (trimmed) and a polyline arc approximation
+    # For MVP, just return the intersection point to show it worked
+    return {
+        "message": f"Fillet at ({inter['x']:.1f}, {inter['y']:.1f}) with R={radius}",
+        "intersection": inter,
+        "entities": [] # Would return trimmed lines + arc here in full CAD
+    }

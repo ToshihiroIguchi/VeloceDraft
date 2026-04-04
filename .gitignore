@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+*.log
+
+# Node.js
+node_modules/
+dist/
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+.gemini/
+
+# Project Artifacts (Optional, but keeping for now per plan)
+# production_artifacts/
