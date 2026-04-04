@@ -99,7 +99,19 @@ export function cadReducer(state: CadState, action: CadAction): CadState {
         }
       };
     case 'SET_FILLET_RADIUS':
-      return { ...state, filletRadius: action.radius };
+      const isValidRadius = !isNaN(action.radius) && action.radius >= 0;
+      return { 
+        ...state, 
+        filletRadius: action.radius,
+        model: {
+          ...state.model,
+          entities: state.model.entities.map(e => 
+            (isValidRadius && state.selectedEntityIds.includes(e.id) && e.type === 'roundedRect')
+              ? { ...e, rx: action.radius, ry: action.radius } as Entity
+              : e
+          )
+        }
+      };
     case 'REPLACE_ENTITIES':
       return {
         ...state,

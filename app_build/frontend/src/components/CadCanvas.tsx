@@ -138,9 +138,24 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         }));
       }
     });
+    
+    // Restore selection
+    if (state.selectedEntityIds.length > 0) {
+      const toSelect = fabricCanvas.getObjects().filter(obj => 
+        // @ts-ignore
+        state.selectedEntityIds.includes(obj.id)
+      );
+      if (toSelect.length === 1) {
+        fabricCanvas.setActiveObject(toSelect[0]);
+      } else if (toSelect.length > 1) {
+        fabricCanvas.setActiveObject(new fabric.ActiveSelection(toSelect, {
+          canvas: fabricCanvas,
+        }));
+      }
+    }
 
     fabricCanvas.renderAll();
-  }, [state.model, state.currentTool, fabricCanvas]);
+  }, [state.model, state.currentTool, state.selectedEntityIds, fabricCanvas]);
 
   // Handle Mouse Events for Tools
   useEffect(() => {
@@ -256,8 +271,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           top: pointer.y,
           width: 0,
           height: 0,
-          rx: 10,
-          ry: 10,
+          rx: state.filletRadius,
+          ry: state.filletRadius,
           fill: 'rgba(0, 100, 250, 0.3)',
           stroke: 'blue',
           strokeWidth: 2,
@@ -376,7 +391,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
               x: left + width / 2,
               y: top + height / 2,
             },
-            width, height, rx: 10, ry: 10, visible: true
+            width, height, rx: state.filletRadius, ry: state.filletRadius, visible: true
           };
           dispatch({ type: 'ADD_ENTITY', entity: newRect });
         }

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CadAction } from '../store/cadReducer';
 import type { CadState, ElectrodeArray, RoundedRect, Line } from '../model';
-import { Activity, Database } from 'lucide-react';
+import { Activity, Database, Link, Link2Off, Settings } from 'lucide-react';
 import { API_BASE_URL } from '../apiConfig';
 
 interface SidebarProps {
@@ -10,6 +10,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
+  const [isRadiusLinked, setIsRadiusLinked] = useState(true);
   const selectedEntities = state.model.entities.filter(e => state.selectedEntityIds.includes(e.id));
   const unitDisplay = state.model.unit === 'um' ? 'μm' : state.model.unit;
 
@@ -49,20 +50,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
         </select>
       </div>
 
-      <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
-
-      <div>
-        <h3 style={{ fontSize: '15px', margin: '0 0 10px 0', color: '#333' }}>Tool Settings</h3>
-        <label style={{ fontSize: '13px', color: '#666', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          Fillet Radius ({unitDisplay}):
-          <input 
-            type="number" 
-            value={state.filletRadius} 
-            onChange={e => dispatch({ type: 'SET_FILLET_RADIUS', radius: parseFloat(e.target.value) || 0 })} 
-            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '13px' }}
-          />
-        </label>
-      </div>
+      {selectedEntities.length === 0 && (state.currentTool === 'roundedRect') && (
+        <>
+          <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
+          <div>
+            <h3 style={{ fontSize: '15px', margin: '0 0 10px 0', color: '#333', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Settings size={16} /> Tool Defaults
+            </h3>
+            <label style={{ fontSize: '13px', color: '#666', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              Initial Radius ({unitDisplay}):
+              <input 
+                type="number" 
+                value={isNaN(state.filletRadius) ? '' : state.filletRadius} 
+                onChange={e => {
+                  const val = e.target.value === '' ? NaN : parseFloat(e.target.value);
+                  dispatch({ type: 'SET_FILLET_RADIUS', radius: val });
+                }} 
+                style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '13px' }}
+              />
+            </label>
+          </div>
+        </>
+      )}
 
       <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
 
@@ -89,11 +98,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
             const rr = entity as RoundedRect;
             return (
               <div key={rr.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '12px' }}>
-                 <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>Rounded Rect: {rr.id.substring(0,6)}</h4>
-                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <label style={{ fontSize: '12px', color: '#666' }}>RX: <input type="number" value={rr.rx} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
-                  <label style={{ fontSize: '12px', color: '#666' }}>RY: <input type="number" value={rr.ry} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { ry: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>Rounded Rect: {rr.id.substring(0,6)}</h4>
+                   <button 
+                     onClick={() => setIsRadiusLinked(!isRadiusLinked)}
+                     style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#007bff', padding: '2px' }}
+                     title={isRadiusLinked ? "Unlink RX/RY" : "Link RX/RY"}
+                   >
+                     {isRadiusLinked ? <Link size={16} /> : <Link2Off size={16} />}
+                   </button>
                  </div>
+                 
+                 {isRadiusLinked ? (
+                   <label style={{ fontSize: '12px', color: '#666', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                     Corner Radius: 
+                     <input 
+                       type="number" 
+                       value={rr.rx} 
+                       onChange={e => {
+                         const val = parseFloat(e.target.value) || 0;
+                         dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: val, ry: val } });
+                         // Also sync Tool Defaults if linked
+                         dispatch({ type: 'SET_FILLET_RADIUS', radius: val });
+                       }} 
+                       style={{width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px'}} 
+                     />
+                   </label>
+                 ) : (
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', color: '#666' }}>RX: <input type="number" value={rr.rx} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: parseFloat(e.target.value) || 0 } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                    <label style={{ fontSize: '12px', color: '#666' }}>RY: <input type="number" value={rr.ry} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { ry: parseFloat(e.target.value) || 0 } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                   </div>
+                 )}
               </div>
             );
           }
