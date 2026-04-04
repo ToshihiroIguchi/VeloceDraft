@@ -2,6 +2,7 @@ import React from 'react';
 import type { CadAction } from '../store/cadReducer';
 import type { CadState, ElectrodeArray, RoundedRect } from '../model';
 import { Activity, Database } from 'lucide-react';
+import { API_BASE_URL } from '../apiConfig';
 
 interface SidebarProps {
   state: CadState;
@@ -88,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
             onMouseOut={e => e.currentTarget.style.background = '#333'}
             onClick={async () => {
               try {
-                const res = await fetch('http://localhost:8080/api/area/calculate', {
+                const res = await fetch(`${API_BASE_URL}/api/area/calculate`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(state.model)

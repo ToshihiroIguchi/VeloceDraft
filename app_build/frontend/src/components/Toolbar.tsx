@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CadAction } from '../store/cadReducer';
-import { MousePointer2, Square, PlusSquare, Network, Layers, FileDown, FileUp, BoxSelect, Minus, CornerDownRight } from 'lucide-react';
+import { MousePointer2, Square, Network, FileDown, BoxSelect, Minus, CornerDownRight } from 'lucide-react';
+import { API_BASE_URL } from '../apiConfig';
 import { v4 as uuidv4 } from 'uuid';
 import type { CadState, ElectrodeArray } from '../model';
 
@@ -12,7 +13,7 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
   const handleExport = async (format: 'dxf' | 'svg' | 'pdf') => {
     try {
-      const res = await fetch(`http://localhost:8080/api/${format}/export`, {
+      const res = await fetch(`${API_BASE_URL}/api/${format}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(state.model)
@@ -35,7 +36,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
         dispatch({ 
           type: 'SHOW_MODAL', 
           title: 'Connection Error', 
-          message: 'Could not connect to the backend server. Please ensure the FastAPI server is running on http://localhost:8080.' 
+          message: `Could not connect to the backend server. Please ensure the FastAPI server is running on ${API_BASE_URL}.` 
         });
       } else {
         dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Export failed: ${e}`, type: 'error' } });
@@ -50,7 +51,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8080/api/fillet?radius=10.0`, {
+      const res = await fetch(`${API_BASE_URL}/api/fillet?radius=10.0`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +102,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
 
   return (
     <div style={{ height: '60px', borderBottom: '1px solid #ccc', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '16px', background: '#f5f5f5' }}>
-      <div style={{ fontWeight: 'bold', marginRight: '32px' }}>VeloceDraft</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '32px' }}>
+        <img src="/favicon.svg" alt="Logo" style={{ width: '28px', height: '28px' }} />
+        <span style={{ fontWeight: 700, fontSize: '1.25rem', color: '#1A1A1B', letterSpacing: '0.5px' }}>VeloceDraft</span>
+      </div>
       
       <button style={toolBtnStyle('select')} onClick={() => dispatch({ type: 'SET_TOOL', tool: 'select' })}>
         <MousePointer2 size={20} /> Select

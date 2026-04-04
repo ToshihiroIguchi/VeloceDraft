@@ -1,5 +1,6 @@
 import React, { useReducer } from 'react';
 import { cadReducer, initialCadState } from './store/cadReducer';
+import { API_BASE_URL } from './apiConfig';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { CadCanvas } from './components/CadCanvas';
@@ -14,7 +15,7 @@ function App() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch('http://localhost:8080/health');
+        const res = await fetch(`${API_BASE_URL}/health`);
         if (res.ok) {
           dispatch({ type: 'SET_SERVER_STATUS', status: 'online' });
         } else {
