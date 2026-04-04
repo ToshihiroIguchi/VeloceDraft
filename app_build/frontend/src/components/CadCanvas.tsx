@@ -185,29 +185,48 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           }
         }
         
-        if (state.currentTool === 'roundedRect' && activeShape) {
+        if (state.currentTool === 'roundedRect' && activeShape && startPoint) {
+          let width = Math.abs(pointer.x - startPoint.x);
+          let height = Math.abs(pointer.y - startPoint.y);
+          let left = Math.min(pointer.x, startPoint.x);
+          let top = Math.min(pointer.y, startPoint.y);
+
+          if (opt.e.shiftKey) {
+            const size = Math.max(width, height);
+            width = size;
+            height = size;
+            left = pointer.x < startPoint.x ? startPoint.x - size : startPoint.x;
+            top = pointer.y < startPoint.y ? startPoint.y - size : startPoint.y;
+          }
+
           // @ts-ignore
-          activeShape.set({
-            width: Math.abs(pointer.x - startPoint.x),
-            height: Math.abs(pointer.y - startPoint.y),
-          });
-          if (pointer.x < startPoint.x) activeShape.set({ left: pointer.x });
-          if (pointer.y < startPoint.y) activeShape.set({ top: pointer.y });
+          activeShape.set({ width, height, left, top });
           fabricCanvas.requestRenderAll();
           
           dispatch({
             type: 'UPDATE_DISTANCE_OVERLAY',
-            p1: startPoint, p2: pointer
+            p1: startPoint, 
+            p2: { x: pointer.x < startPoint.x ? startPoint.x - width : startPoint.x + width, 
+                  y: pointer.y < startPoint.y ? startPoint.y - height : startPoint.y + height }
           });
         }
 
-        if (state.currentTool === 'line' && activeShape) {
+        if (state.currentTool === 'line' && activeShape && startPoint) {
+          let endX = pointer.x;
+          let endY = pointer.y;
+          if (opt.e.shiftKey) {
+            if (Math.abs(pointer.x - startPoint.x) > Math.abs(pointer.y - startPoint.y)) {
+              endY = startPoint.y;
+            } else {
+              endX = startPoint.x;
+            }
+          }
           // @ts-ignore
-          activeShape.set({ x2: pointer.x, y2: pointer.y });
+          activeShape.set({ x2: endX, y2: endY });
           fabricCanvas.requestRenderAll();
           dispatch({
             type: 'UPDATE_DISTANCE_OVERLAY',
-            p1: startPoint, p2: pointer
+            p1: startPoint, p2: { x: endX, y: endY }
           });
         }
       }
@@ -219,16 +238,27 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       fabricCanvas.selection = true;
       
       if (state.currentTool === 'roundedRect' && activeShape && startPoint) {
-        const width = Math.abs(pointer.x - startPoint.x);
-        const height = Math.abs(pointer.y - startPoint.y);
+        let width = Math.abs(pointer.x - startPoint.x);
+        let height = Math.abs(pointer.y - startPoint.y);
+        let left = Math.min(pointer.x, startPoint.x);
+        let top = Math.min(pointer.y, startPoint.y);
+
+        if (opt.e.shiftKey) {
+          const size = Math.max(width, height);
+          width = size;
+          height = size;
+          left = pointer.x < startPoint.x ? startPoint.x - size : startPoint.x;
+          top = pointer.y < startPoint.y ? startPoint.y - size : startPoint.y;
+        }
+
         if (width > 5 && height > 5) {
           const newRect: RoundedRect = {
             id: uuidv4(),
             layerId: state.activeLayerId,
             type: 'roundedRect',
             center: {
-              x: Math.min(startPoint.x, pointer.x) + width / 2,
-              y: Math.min(startPoint.y, pointer.y) + height / 2,
+              x: left + width / 2,
+              y: top + height / 2,
             },
             width, height, rx: 10, ry: 10, visible: true
           };
@@ -241,14 +271,23 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       }
 
       if (state.currentTool === 'line' && activeShape && startPoint) {
-        const dist = Math.sqrt((pointer.x - startPoint.x)**2 + (pointer.y - startPoint.y)**2);
+        let endX = pointer.x;
+        let endY = pointer.y;
+        if (opt.e.shiftKey) {
+          if (Math.abs(pointer.x - startPoint.x) > Math.abs(pointer.y - startPoint.y)) {
+            endY = startPoint.y;
+          } else {
+            endX = startPoint.x;
+          }
+        }
+        const dist = Math.sqrt((endX - startPoint.x)**2 + (endY - startPoint.y)**2);
         if (dist > 5) {
           const newLine = {
             id: uuidv4(),
             layerId: state.activeLayerId,
             type: 'line',
             start: { x: startPoint.x, y: startPoint.y },
-            end: { x: pointer.x, y: pointer.y },
+            end: { x: endX, y: endY },
             visible: true
           };
           // @ts-ignore

@@ -12,12 +12,15 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
   const handleExport = async (format: 'dxf' | 'svg' | 'pdf') => {
     try {
-      const res = await fetch(`http://localhost:8000/api/${format}/export`, {
+      const res = await fetch(`http://localhost:8080/api/${format}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(state.model)
       });
       if (!res.ok) throw new Error("Export failed");
+      
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Successfully exported ${format.toUpperCase()}`, type: 'success' } });
+      
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -28,18 +31,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      alert(`Export failed: ${e}`);
+      if (e instanceof TypeError && e.message === 'Failed to fetch') {
+        dispatch({ 
+          type: 'SHOW_MODAL', 
+          title: 'Connection Error', 
+          message: 'Could not connect to the backend server. Please ensure the FastAPI server is running on http://localhost:8080.' 
+        });
+      } else {
+        dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Export failed: ${e}`, type: 'error' } });
+      }
     }
   };
 
   const handleFillet = async () => {
     const selectedLines = state.model.entities.filter(e => state.selectedEntityIds.includes(e.id) && e.type === 'line');
     if (selectedLines.length !== 2) {
-      alert("Please select exactly 2 lines for Fillet");
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: "Please select exactly 2 lines for Fillet", type: 'info' } });
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/fillet?radius=10.0`, {
+      const res = await fetch(`http://localhost:8080/api/fillet?radius=10.0`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -49,15 +60,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
         })
       });
       const data = await res.json();
-      alert(`Fillet Result: ${data.message}`);
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: data.message, type: 'success' } });
     } catch (e) {
-      alert(`Fillet failed: ${e}`);
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Fillet failed: ${e}`, type: 'error' } });
     }
   };
 
   const createArray = () => {
     if (state.selectedEntityIds.length !== 1) {
-      alert("Please select exactly one source shape");
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: "Please select exactly one source shape", type: 'info' } });
       return;
     }
     const arr: ElectrodeArray = {

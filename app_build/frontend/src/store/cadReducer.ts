@@ -1,4 +1,5 @@
 import type { CadState, Entity, Layer, ClosedRegion } from '../model';
+import { v4 as uuidv4 } from 'uuid';
 
 export type CadAction =
   | { type: 'SET_TOOL'; tool: CadState['currentTool'] }
@@ -8,7 +9,12 @@ export type CadAction =
   | { type: 'SET_SELECTED'; entityIds: string[] }
   | { type: 'TOGGLE_LAYER_VISIBILITY'; layerId: string }
   | { type: 'LOAD_MODEL'; model: CadState['model'] }
-  | { type: 'UPDATE_DISTANCE_OVERLAY'; p1: { x: number, y: number } | null; p2: { x: number, y: number } | null };
+  | { type: 'UPDATE_DISTANCE_OVERLAY'; p1: { x: number, y: number } | null; p2: { x: number, y: number } | null }
+  | { type: 'ADD_NOTIFICATION'; notification: { message: string, type: 'success' | 'error' | 'info' } }
+  | { type: 'REMOVE_NOTIFICATION'; id: string }
+  | { type: 'SHOW_MODAL'; title: string; message: string; confirmLabel?: string }
+  | { type: 'HIDE_MODAL' }
+  | { type: 'SET_SERVER_STATUS'; status: 'online' | 'offline' };
 
 export const initialCadState: CadState = {
   model: {
@@ -21,7 +27,10 @@ export const initialCadState: CadState = {
   activeLayerId: 'layer1',
   selectedEntityIds: [],
   currentTool: 'select',
-  distanceOverlay: { active: false, p1: null, p2: null }
+  distanceOverlay: { active: false, p1: null, p2: null },
+  notifications: [],
+  modal: { isOpen: false, title: '', message: '' },
+  serverStatus: 'offline'
 };
 
 export function cadReducer(state: CadState, action: CadAction): CadState {
@@ -64,6 +73,18 @@ export function cadReducer(state: CadState, action: CadAction): CadState {
       return { ...state, model: action.model };
     case 'UPDATE_DISTANCE_OVERLAY':
       return { ...state, distanceOverlay: { active: !!action.p1, p1: action.p1, p2: action.p2 }};
+    case 'ADD_NOTIFICATION':
+      // @ts-ignore
+      const newNotif = { ...action.notification, id: uuidv4() };
+      return { ...state, notifications: [...state.notifications, newNotif] };
+    case 'REMOVE_NOTIFICATION':
+      return { ...state, notifications: state.notifications.filter(n => n.id !== action.id) };
+    case 'SHOW_MODAL':
+      return { ...state, modal: { isOpen: true, title: action.title, message: action.message, confirmLabel: action.confirmLabel } };
+    case 'HIDE_MODAL':
+      return { ...state, modal: { ...state.modal, isOpen: false } };
+    case 'SET_SERVER_STATUS':
+      return { ...state, serverStatus: action.status };
     default:
       return state;
   }

@@ -8,15 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import DrawingModel, Entity, RoundedRect, ElectrodeArray, Rect, Line
 import io
 import uuid
+import logging
+
+logging.basicConfig(filename='backend.log', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VeloceDraft API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False, # Use False with * for simple origin sharing if appropriate
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 @app.get("/health")
@@ -32,15 +37,36 @@ async def export_dxf(drawing: DrawingModel):
 
 @app.post("/api/svg/export")
 async def export_svg(drawing: DrawingModel):
-    from ezdxf.addons.drawing.svg import SVGBackend
-    doc = _create_dxf_doc(drawing)
-    msp = doc.modelspace()
-    ctx = RenderContext(doc)
-    out = io.StringIO()
-    backend = SVGBackend()
-    Frontend(ctx, backend).draw_layout(msp)
-    svg_string = backend.get_xml()
-    return Response(content=svg_string, media_type="image/svg+xml", headers={"Content-Disposition": "attachment; filename=export.svg"})
+    logger.info(f"Exporting SVG with {len(drawing.entities)} entities")
+    try:
+        doc = _create_dxf_doc(drawing)
+        msp = doc.modelspace()
+        ctx = RenderContext(doc)
+        
+        fig = plt.figure()
+        # Create axes that cover the whole figure
+        ax = fig.add_axes([0, 0, 1, 1])
+        fig.patch.set_alpha(0)
+        ax.patch.set_alpha(0)
+        ax.set_axis_off()
+        
+        backend = MatplotlibBackend(ax)
+        Frontend(ctx, backend).draw_layout(msp)
+        
+        buf = io.BytesIO()
+        fig.savefig(buf, format='svg', bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+        svg_content = buf.getvalue().decode('utf-8')
+            
+        logger.info("SVG generated successfully via Matplotlib")
+        return Response(
+            content=svg_content, 
+            media_type="image/svg+xml", 
+            headers={"Content-Disposition": "attachment; filename=export.svg"}
+        )
+    except Exception as e:
+        logger.error(f"MATPLOTLIB SVG FAILED: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": f"MATPLOTLIB SVG FAILED: {str(e)}"})
 
 @app.post("/api/pdf/export")
 async def export_pdf(drawing: DrawingModel):
@@ -139,7 +165,7 @@ async def import_dxf(file: UploadFile = File(...)):
                         "width": max_x - min_x,
                         "height": max_y - min_y,
                         "visible": True
-                    })
+					})
         return {
             "layers": [{"id": "layer1", "name": "Imported", "visible": True}],
             "entities": entities,
@@ -150,8 +176,6 @@ async def import_dxf(file: UploadFile = File(...)):
 
 @app.post("/api/fillet")
 async def fillet_lines(line1: Line, line2: Line, radius: float):
-    # Calculate intersection of Two Lines
-    # Line 1: p1 -> p2, Line 2: p3 -> p4
     p1, p2 = line1.start, line1.end
     p3, p4 = line2.start, line2.end
     
@@ -169,10 +193,8 @@ async def fillet_lines(line1: Line, line2: Line, radius: float):
     if not inter:
         return {"message": "Lines are parallel", "entities": []}
     
-    # Return modified lines (trimmed) and a polyline arc approximation
-    # For MVP, just return the intersection point to show it worked
     return {
         "message": f"Fillet at ({inter['x']:.1f}, {inter['y']:.1f}) with R={radius}",
         "intersection": inter,
-        "entities": [] # Would return trimmed lines + arc here in full CAD
+        "entities": []
     }

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CadAction } from '../store/cadReducer';
 import type { CadState, ElectrodeArray, RoundedRect } from '../model';
+import { Activity, Database } from 'lucide-react';
 
 interface SidebarProps {
   state: CadState;
@@ -13,68 +14,113 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
   return (
     <div style={{ width: '250px', borderLeft: '1px solid #ccc', background: '#fafafa', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
       <div>
-        <h3>Layers</h3>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', margin: '0 0 12px 0' }}>
+          <Database size={18} /> Layers
+        </h3>
         {state.model.layers.map(layer => (
-          <div key={layer.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <div key={layer.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '14px' }}>
             <input 
               type="checkbox" 
               checked={layer.visible} 
               onChange={() => dispatch({ type: 'TOGGLE_LAYER_VISIBILITY', layerId: layer.id })} 
             />
-            <span style={{ fontWeight: state.activeLayerId === layer.id ? 'bold' : 'normal' }}>
+            <span style={{ fontWeight: state.activeLayerId === layer.id ? 'bold' : 'normal', color: '#444' }}>
               {layer.name}
             </span>
           </div>
         ))}
       </div>
 
-      <hr />
+      <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
 
-      <div>
-        <h3>Properties</h3>
-        {selectedEntities.length === 0 && <p style={{ color: '#888' }}>No entities selected.</p>}
+      <div style={{ flex: 1 }}>
+        <h3 style={{ fontSize: '16px', margin: '0 0 12px 0' }}>Properties</h3>
+        {selectedEntities.length === 0 && <p style={{ color: '#888', fontSize: '13px' }}>No entities selected.</p>}
         {selectedEntities.map(entity => {
           if (entity.type === 'electrodeArray') {
             const arr = entity as ElectrodeArray;
             return (
-              <div key={arr.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <h4>Array: {arr.id.substring(0,6)}</h4>
-                <label>Count X: <input type="number" value={arr.countX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { countX: parseInt(e.target.value) } })} style={{width: '60px'}} /></label>
-                <label>Count Y: <input type="number" value={arr.countY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { countY: parseInt(e.target.value) } })} style={{width: '60px'}} /></label>
-                <label>Pitch X: <input type="number" value={arr.pitchX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchX: parseFloat(e.target.value) } })} style={{width: '60px'}} /></label>
-                <label>Pitch Y: <input type="number" value={arr.pitchY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchY: parseFloat(e.target.value) } })} style={{width: '60px'}} /></label>
+              <div key={arr.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>Array: {arr.id.substring(0,6)}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', color: '#666' }}>Count X: <input type="number" value={arr.countX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { countX: parseInt(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                  <label style={{ fontSize: '12px', color: '#666' }}>Count Y: <input type="number" value={arr.countY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { countY: parseInt(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                  <label style={{ fontSize: '12px', color: '#666' }}>Pitch X: <input type="number" value={arr.pitchX} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchX: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                  <label style={{ fontSize: '12px', color: '#666' }}>Pitch Y: <input type="number" value={arr.pitchY} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: arr.id, updates: { pitchY: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                </div>
               </div>
             );
           }
           if (entity.type === 'roundedRect') {
             const rr = entity as RoundedRect;
             return (
-              <div key={rr.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                 <h4>Rounded Rect: {rr.id.substring(0,6)}</h4>
-                 <label>RX: <input type="number" value={rr.rx} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: parseFloat(e.target.value) } })} style={{width: '60px'}} /></label>
-                 <label>RY: <input type="number" value={rr.ry} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { ry: parseFloat(e.target.value) } })} style={{width: '60px'}} /></label>
+              <div key={rr.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '12px' }}>
+                 <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>Rounded Rect: {rr.id.substring(0,6)}</h4>
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', color: '#666' }}>RX: <input type="number" value={rr.rx} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                  <label style={{ fontSize: '12px', color: '#666' }}>RY: <input type="number" value={rr.ry} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { ry: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
+                 </div>
               </div>
             );
           }
-          return <div key={entity.id}>Unknown shape</div>;
+          return <div key={entity.id} style={{ fontSize: '13px', color: '#666' }}>Other shape ({entity.type})</div>;
         })}
       </div>
       
-      <hr />
+      <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
 
-      <div>
-         <h3>Area Calculation</h3>
-         <button onClick={async () => {
-           const res = await fetch('http://localhost:8000/api/area/calculate', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(state.model)
-           });
-           const data = await res.json();
-           alert(`Calculated Total Area (Rect/RoundedRect): ${data.area.toFixed(2)} units²`);
-         }}>
-           Calculate Area of Selected
-         </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ fontSize: '16px', margin: 0 }}>Analysis</h3>
+          <button 
+            style={{ 
+              padding: '10px', 
+              background: '#333', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer',
+              width: '100%',
+              fontSize: '13px',
+              fontWeight: '600',
+              transition: 'background 0.2s'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#000'}
+            onMouseOut={e => e.currentTarget.style.background = '#333'}
+            onClick={async () => {
+              try {
+                const res = await fetch('http://localhost:8080/api/area/calculate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(state.model)
+                });
+                if (!res.ok) throw new Error("Calculation request failed");
+                const data = await res.json();
+                dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Total Area: ${data.area.toFixed(2)} units²`, type: 'success' } });
+              } catch (e) {
+                dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Calculation failed: ${e}`, type: 'error' } });
+              }
+            }}
+          >
+            Calculate Total Area
+          </button>
+      </div>
+
+      <div style={{ 
+        marginTop: 'auto',
+        padding: '12px', 
+        background: state.serverStatus === 'online' ? '#e8f5e9' : '#ffebee', 
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        fontSize: '11px',
+        fontWeight: '600',
+        color: state.serverStatus === 'online' ? '#2e7d32' : '#c62828',
+        border: `1px solid ${state.serverStatus === 'online' ? '#c8e6c9' : '#ffcdd2'}`
+      }}>
+        <Activity size={14} />
+        <div style={{ flex: 1 }}>BACKEND: {state.serverStatus.toUpperCase()}</div>
+        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 4px currentColor' }} />
       </div>
 
     </div>

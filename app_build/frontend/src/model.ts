@@ -54,6 +54,19 @@ export type ClosedRegion = {
   containsArcs: boolean;
 };
 
+export type Notification = {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+};
+
+export type ModalState = {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+};
+
 export type DrawingModel = {
   layers: Layer[];
   entities: Entity[];
@@ -66,4 +79,7 @@ export type CadState = {
   selectedEntityIds: string[];
   currentTool: 'select' | 'roundedRect' | 'rect' | 'line' | 'electrodeArray' | 'areaCheck' | 'pan';
   distanceOverlay: { active: boolean; p1: Point | null; p2: Point | null };
+  notifications: Notification[];
+  modal: ModalState;
+  serverStatus: 'online' | 'offline';
 };
