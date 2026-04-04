@@ -124,18 +124,13 @@ def _add_rounded_rect(msp, entity):
     ]
     msp.add_lwpolyline(points, close=True)
 
+from geometry_utils import calculate_area_from_planar_graph
+
 @app.post("/api/area/calculate")
 async def calculate_area(drawing: DrawingModel):
-    total_area = 0.0
-    for entity in drawing.entities:
-        if entity.type in ["roundedRect", "rect"]:
-            total_area += _get_entity_area(entity)
-        elif entity.type == "electrodeArray":
-            source = next((e for e in drawing.entities if e.id == entity.sourceId), None)
-            if source:
-                source_area = _get_entity_area(source)
-                total_area += source_area * (entity.countX * entity.countY)
+    total_area = calculate_area_from_planar_graph(drawing)
     return {"area": total_area}
+
 
 def _get_entity_area(e):
     w, h, r = getattr(e, "width", 0), getattr(e, "height", 0), getattr(e, "rx", 0)

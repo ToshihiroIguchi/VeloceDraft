@@ -28,14 +28,40 @@ def test_area_calculation_rounded():
     area = _get_entity_area(rect)
     assert 4914 < area < 4915
 
-def test_fillet_intersection():
-    from main import Line
+from models import DrawingModel, RoundedRect, Point, ElectrodeArray, Line, Rect
+
+def test_area_calculation_rect_entities():
+    # Test using the actual calculate_area_from_planar_graph logic
+    from geometry_utils import calculate_area_from_planar_graph
+    rect = Rect(id="r1", layerId="L1", type="rect", center=Point(x=50, y=50), width=100, height=100, visible=True)
+    drawing = DrawingModel(layers=[], entities=[rect], closedRegions=[])
+    assert calculate_area_from_planar_graph(drawing) == 10000
+
+def test_area_calculation_separate_lines():
+    from geometry_utils import calculate_area_from_planar_graph
+    # 4 lines forming a 100x100 square
     l1 = Line(id="l1", layerId="L1", type="line", start=Point(x=0, y=0), end=Point(x=100, y=0), visible=True)
-    l2 = Line(id="l2", layerId="L1", type="line", start=Point(x=50, y=-50), end=Point(x=50, y=50), visible=True)
-    # Intersection at (50, 0)
-    # We'll use the API call or the inner function if exposed
-    # For now, just test the intersection logic snippet if moved to helper
-    pass
+    l2 = Line(id="l2", layerId="L1", type="line", start=Point(x=100, y=0), end=Point(x=100, y=100), visible=True)
+    l3 = Line(id="l3", layerId="L1", type="line", start=Point(x=100, y=100), end=Point(x=0, y=100), visible=True)
+    l4 = Line(id="l4", layerId="L1", type="line", start=Point(x=0, y=100), end=Point(x=0, y=0), visible=True)
+    
+    drawing = DrawingModel(layers=[], entities=[l1, l2, l3, l4], closedRegions=[])
+    area = calculate_area_from_planar_graph(drawing)
+    assert area == 10000
+
+def test_area_calculation_overlapping_rects():
+    from geometry_utils import calculate_area_from_planar_graph
+    # Two 100x100 squares overlapping by 50x100
+    # Total area should be 150*100 = 15000 if union, or 10000+10000 if summed.
+    # Our Planar Graph logic returns the area of all interior faces.
+    # Overlapping rects will create 3 faces: two 50x100 and one 50x100 intersection.
+    # Sum should be 15000.
+    r1 = Rect(id="r1", layerId="L1", type="rect", center=Point(x=50, y=50), width=100, height=100, visible=True)
+    r2 = Rect(id="r2", layerId="L1", type="rect", center=Point(x=100, y=50), width=100, height=100, visible=True)
+    drawing = DrawingModel(layers=[], entities=[r1, r2], closedRegions=[])
+    area = calculate_area_from_planar_graph(drawing)
+    assert area == 15000
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
