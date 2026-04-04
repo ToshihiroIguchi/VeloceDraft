@@ -1,6 +1,6 @@
 # VeloceDraft
 
-VeloceDraft is a specialized 2D CAD application designed specifically for **MLCC (Multi-Layer Ceramic Capacitor)** electrode pattern editing. It bridges the gap between high-end CAD software and manual drafting by providing a parametric, lightweight, and manufacturing-ready environment.
+VeloceDraft is a specialized 2D CAD application designed specifically for **Electronic Component** electrode pattern editing. It bridges the gap between high-end CAD software and manual drafting by providing a parametric, lightweight, and manufacturing-ready environment.
 
 ![Header Screenshot](file:///c:/Users/toshi/python/VeloceDraft/production_artifacts/browser_screenshots/03_entities.png)
 
