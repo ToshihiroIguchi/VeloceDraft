@@ -1,4 +1,4 @@
-import type { CadState, Entity, Layer, ClosedRegion } from '../model';
+import type { CadState, Entity } from '../model';
 import { v4 as uuidv4 } from 'uuid';
 
 export type CadAction =
@@ -14,7 +14,10 @@ export type CadAction =
   | { type: 'REMOVE_NOTIFICATION'; id: string }
   | { type: 'SHOW_MODAL'; title: string; message: string; confirmLabel?: string }
   | { type: 'HIDE_MODAL' }
-  | { type: 'SET_SERVER_STATUS'; status: 'online' | 'offline' };
+  | { type: 'SET_SERVER_STATUS'; status: 'online' | 'offline' }
+  | { type: 'SET_UNIT'; unit: CadState['model']['unit'] }
+  | { type: 'SET_FILLET_RADIUS'; radius: number }
+  | { type: 'REPLACE_ENTITIES'; originalIds: string[]; newEntities: Entity[] };
 
 export const initialCadState: CadState = {
   model: {
@@ -22,7 +25,8 @@ export const initialCadState: CadState = {
       { id: 'layer1', name: 'Layer 1', visible: true }
     ],
     entities: [],
-    closedRegions: []
+    closedRegions: [],
+    unit: 'unitless'
   },
   activeLayerId: 'layer1',
   selectedEntityIds: [],
@@ -30,7 +34,8 @@ export const initialCadState: CadState = {
   distanceOverlay: { active: false, p1: null, p2: null },
   notifications: [],
   modal: { isOpen: false, title: '', message: '' },
-  serverStatus: 'offline'
+  serverStatus: 'offline',
+  filletRadius: 10.0
 };
 
 export function cadReducer(state: CadState, action: CadAction): CadState {
@@ -85,6 +90,28 @@ export function cadReducer(state: CadState, action: CadAction): CadState {
       return { ...state, modal: { ...state.modal, isOpen: false } };
     case 'SET_SERVER_STATUS':
       return { ...state, serverStatus: action.status };
+    case 'SET_UNIT':
+      return {
+        ...state,
+        model: {
+          ...state.model,
+          unit: action.unit
+        }
+      };
+    case 'SET_FILLET_RADIUS':
+      return { ...state, filletRadius: action.radius };
+    case 'REPLACE_ENTITIES':
+      return {
+        ...state,
+        model: {
+          ...state.model,
+          entities: [
+            ...state.model.entities.filter(e => !action.originalIds.includes(e.id)),
+            ...action.newEntities
+          ]
+        },
+        selectedEntityIds: []
+      };
     default:
       return state;
   }

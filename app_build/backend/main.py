@@ -85,7 +85,14 @@ async def export_pdf(drawing: DrawingModel):
 
 def _create_dxf_doc(drawing: DrawingModel):
     doc = ezdxf.new('R2010')
+    
+    # Set units
+    unit_map = {"unitless": 0, "inch": 1, "mm": 4, "um": 13}
+    unit_code = unit_map.get(drawing.unit, 0)
+    doc.header['$INSUNITS'] = unit_code
+    
     msp = doc.modelspace()
+    # Handle non-line entities first
     for entity in drawing.entities:
         if entity.type == "roundedRect":
             _add_rounded_rect(msp, entity)
@@ -102,8 +109,29 @@ def _create_dxf_doc(drawing: DrawingModel):
                         shifted_entity = source.copy(update={"center": {"x": sc.x + offsetX, "y": sc.y + offsetY}})
                         if source.type == "roundedRect":
                             _add_rounded_rect(msp, shifted_entity)
+                        elif source.type == "arc":
+                             msp.add_arc((shifted_entity.center.x, shifted_entity.center.y), shifted_entity.radius, shifted_entity.startAngle, shifted_entity.endAngle)
                         else:
-                            _add_rect(msp, shifted_entity)
+                             _add_rect(msp, shifted_entity)
+    
+    # Process regular entities
+    for entity in drawing.entities:
+        if entity.type == "arc":
+             msp.add_arc((entity.center.x, entity.center.y), entity.radius, entity.startAngle, entity.endAngle)
+    
+    # Collect and join all line entities
+    lines = [e for e in drawing.entities if e.type == "line"]
+    if lines:
+        from geometry_utils import join_line_entities, dist
+        joined_paths = join_line_entities(lines)
+        for path in joined_paths:
+            points = [(p.x, p.y) for p in path]
+            is_closed = False
+            if len(path) > 2 and dist(path[0], path[-1]) < 1e-6:
+                is_closed = True
+                points = points[:-1] # Remove last point for closed polyline
+            msp.add_lwpolyline(points, close=is_closed)
+            
     return doc
 
 def _add_rect(msp, entity):
@@ -124,7 +152,7 @@ def _add_rounded_rect(msp, entity):
     ]
     msp.add_lwpolyline(points, close=True)
 
-from geometry_utils import calculate_area_from_planar_graph
+from geometry_utils import calculate_area_from_planar_graph, fillet_geometry
 
 @app.post("/api/area/calculate")
 async def calculate_area(drawing: DrawingModel):
@@ -170,26 +198,25 @@ async def import_dxf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/fillet")
-async def fillet_lines(line1: Line, line2: Line, radius: float):
-    p1, p2 = line1.start, line1.end
-    p3, p4 = line2.start, line2.end
+async def fillet_lines(input_data: dict):
+    line1_dict = input_data.get("line1")
+    line2_dict = input_data.get("line2")
+    radius = input_data.get("radius", 10.0)
     
-    def intersect(p1, p2, p3, p4):
-        x1, y1 = p1.x, p1.y
-        x2, y2 = p2.x, p2.y
-        x3, y3 = p3.x, p3.y
-        x4, y4 = p4.x, p4.y
-        denom = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1)
-        if abs(denom) < 1e-9: return None
-        ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / denom
-        return {"x": x1 + ua*(x2-x1), "y": y1 + ua*(y2-y1)}
-
-    inter = intersect(p1, p2, p3, p4)
-    if not inter:
-        return {"message": "Lines are parallel", "entities": []}
+    if not line1_dict or not line2_dict:
+        raise HTTPException(status_code=400, detail="Missing line data")
+        
+    line1 = Line(**line1_dict)
+    line2 = Line(**line2_dict)
+    
+    res = fillet_geometry(line1, line2, radius)
+    if not res:
+        return {"message": "Fillet failed (lines might be parallel or invalid)", "entities": []}
+    
+    trimmed1, trimmed2, arc_dict = res
     
     return {
-        "message": f"Fillet at ({inter['x']:.1f}, {inter['y']:.1f}) with R={radius}",
-        "intersection": inter,
-        "entities": []
+        "message": f"Fillet applied with R={radius}",
+        "entities": [trimmed1.model_dump(), trimmed2.model_dump(), arc_dict],
+        "originalIds": [line1.id, line2.id]
     }

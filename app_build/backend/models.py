@@ -38,7 +38,14 @@ class Line(EntityBase):
     start: Point
     end: Point
 
-Entity = Union[RoundedRect, Rect, ElectrodeArray, Line]
+class Arc(EntityBase):
+    type: Literal["arc"]
+    center: Point
+    radius: float
+    startAngle: float # in degrees
+    endAngle: float # in degrees
+
+Entity = Union[RoundedRect, Rect, ElectrodeArray, Line, Arc]
 
 class Layer(BaseModel):
     id: str
@@ -56,3 +63,4 @@ class DrawingModel(BaseModel):
     layers: List[Layer]
     entities: List[Entity]
     closedRegions: List[ClosedRegion]
+    unit: Literal["mm", "um", "inch", "unitless"] = "unitless"

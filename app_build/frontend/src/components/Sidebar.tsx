@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CadAction } from '../store/cadReducer';
-import type { CadState, ElectrodeArray, RoundedRect } from '../model';
+import type { CadState, ElectrodeArray, RoundedRect, Line } from '../model';
 import { Activity, Database } from 'lucide-react';
 import { API_BASE_URL } from '../apiConfig';
 
@@ -11,6 +11,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
   const selectedEntities = state.model.entities.filter(e => state.selectedEntityIds.includes(e.id));
+  const unitDisplay = state.model.unit === 'um' ? 'μm' : state.model.unit;
 
   return (
     <div style={{ width: '250px', borderLeft: '1px solid #ccc', background: '#fafafa', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
@@ -30,6 +31,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
             </span>
           </div>
         ))}
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
+
+      <div>
+        <h3 style={{ fontSize: '16px', margin: '0 0 12px 0' }}>Project Units</h3>
+        <select 
+          value={state.model.unit} 
+          onChange={e => dispatch({ type: 'SET_UNIT', unit: e.target.value as any })}
+          style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '14px' }}
+        >
+          <option value="unitless">Unitless</option>
+          <option value="mm">Millimeters (mm)</option>
+          <option value="um">Micrometers (μm)</option>
+          <option value="inch">Inches (in)</option>
+        </select>
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
+
+      <div>
+        <h3 style={{ fontSize: '15px', margin: '0 0 10px 0', color: '#333' }}>Tool Settings</h3>
+        <label style={{ fontSize: '13px', color: '#666', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          Fillet Radius ({unitDisplay}):
+          <input 
+            type="number" 
+            value={state.filletRadius} 
+            onChange={e => dispatch({ type: 'SET_FILLET_RADIUS', radius: parseFloat(e.target.value) || 0 })} 
+            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '13px' }}
+          />
+        </label>
       </div>
 
       <hr style={{ border: 'none', borderTop: '1px solid #eee' }} />
@@ -61,6 +93,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
                   <label style={{ fontSize: '12px', color: '#666' }}>RX: <input type="number" value={rr.rx} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { rx: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
                   <label style={{ fontSize: '12px', color: '#666' }}>RY: <input type="number" value={rr.ry} onChange={e => dispatch({ type: 'UPDATE_ENTITY', id: rr.id, updates: { ry: parseFloat(e.target.value) } })} style={{width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px'}} /></label>
                  </div>
+              </div>
+            );
+          }
+          if (entity.type === 'line') {
+            const ln = entity as Line;
+            return (
+              <div key={ln.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>Line: {ln.id.substring(0,6)}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <label style={{ fontSize: '10px', color: '#999' }}>Start X: <div style={{padding: '4px', background: '#f9f9f9', borderRadius: '4px'}}>{ln.start.x.toFixed(2)}</div></label>
+                  <label style={{ fontSize: '10px', color: '#999' }}>Start Y: <div style={{padding: '4px', background: '#f9f9f9', borderRadius: '4px'}}>{ln.start.y.toFixed(2)}</div></label>
+                  <label style={{ fontSize: '10px', color: '#999' }}>End X: <div style={{padding: '4px', background: '#f9f9f9', borderRadius: '4px'}}>{ln.end.x.toFixed(2)}</div></label>
+                  <label style={{ fontSize: '10px', color: '#999' }}>End Y: <div style={{padding: '4px', background: '#f9f9f9', borderRadius: '4px'}}>{ln.end.y.toFixed(2)}</div></label>
+                </div>
               </div>
             );
           }
@@ -96,7 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
                 });
                 if (!res.ok) throw new Error("Calculation request failed");
                 const data = await res.json();
-                dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Total Area: ${data.area.toFixed(2)} units²`, type: 'success' } });
+                const suffix = state.model.unit === 'unitless' ? 'units' : unitDisplay;
+                dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Total Area: ${data.area.toFixed(2)} ${suffix}²`, type: 'success' } });
               } catch (e) {
                 dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Calculation failed: ${e}`, type: 'error' } });
               }

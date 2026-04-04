@@ -57,10 +57,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
         body: JSON.stringify({
           line1: selectedLines[0],
           line2: selectedLines[1],
-          radius: 10.0
+          radius: state.filletRadius
         })
       });
       const data = await res.json();
+      if (data.entities && data.entities.length > 0) {
+        dispatch({ 
+          type: 'REPLACE_ENTITIES', 
+          originalIds: data.originalIds, 
+          newEntities: data.entities 
+        });
+      }
       dispatch({ type: 'ADD_NOTIFICATION', notification: { message: data.message, type: 'success' } });
     } catch (e) {
       dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Fillet failed: ${e}`, type: 'error' } });

@@ -38,7 +38,15 @@ export type Line = EntityBase & {
   end: Point;
 };
 
-export type Entity = RoundedRect | Rect | ElectrodeArray | Line;
+export type Arc = EntityBase & {
+  type: 'arc';
+  center: Point;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+};
+
+export type Entity = RoundedRect | Rect | ElectrodeArray | Line | Arc;
 
 export type Layer = {
   id: string;
@@ -71,6 +79,7 @@ export type DrawingModel = {
   layers: Layer[];
   entities: Entity[];
   closedRegions: ClosedRegion[];
+  unit: 'mm' | 'um' | 'inch' | 'unitless';
 };
 
 export type CadState = {
@@ -82,4 +91,5 @@ export type CadState = {
   notifications: Notification[];
   modal: ModalState;
   serverStatus: 'online' | 'offline';
+  filletRadius: number;
 };

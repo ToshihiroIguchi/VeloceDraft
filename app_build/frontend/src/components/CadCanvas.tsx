@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { v4 as uuidv4 } from 'uuid';
 import type { CadAction } from '../store/cadReducer';
-import type { CadState, Entity, Point, RoundedRect, ElectrodeArray } from '../model';
+import type { CadState, Point, RoundedRect } from '../model';
 
 interface CadCanvasProps {
   state: CadState;
@@ -107,6 +107,36 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           }
         }
       }
+
+      if (entity.type === 'arc') {
+        const arc = entity as any;
+        const sRad = arc.startAngle * (Math.PI / 180);
+        const eRad = arc.endAngle * (Math.PI / 180);
+        const x1 = arc.center.x + arc.radius * Math.cos(sRad);
+        const y1 = arc.center.y + arc.radius * Math.sin(sRad);
+        const x2 = arc.center.x + arc.radius * Math.cos(eRad);
+        const y2 = arc.center.y + arc.radius * Math.sin(eRad);
+
+        // Determine if large arc and sweep flag
+        // For fillet we always want the "small" arc (< 180 deg)
+        let diff = (arc.endAngle - arc.startAngle) % 360;
+        if (diff < -180) diff += 360;
+        if (diff > 180) diff -= 360;
+
+        const largeArc = Math.abs(diff) > 180 ? 1 : 0;
+        const sweep = diff > 0 ? 1 : 0;
+
+        const pathData = `M ${x1} ${y1} A ${arc.radius} ${arc.radius} 0 ${largeArc} ${sweep} ${x2} ${y2}`;
+        
+        fabricCanvas.add(new fabric.Path(pathData, {
+          fill: 'transparent',
+          stroke: 'blue',
+          strokeWidth: 2,
+          selectable: state.currentTool === 'select',
+          // @ts-ignore
+          id: arc.id
+        }));
+      }
     });
 
     fabricCanvas.renderAll();
@@ -119,6 +149,77 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     let isDragging = false;
     let startPoint: Point | null = null;
     let activeShape: fabric.Object | null = null;
+    let snapIndicator: fabric.Rect | null = null;
+
+    const findSnapPoint = (pointer: Point): Point | null => {
+      const threshold = 15 / fabricCanvas.getZoom(); // consistent screen-space threshold
+      const entities = state.model.entities;
+      const points: Point[] = [];
+      entities.forEach(e => {
+        if (!e.visible) return;
+        const layer = state.model.layers.find(l => l.id === e.layerId);
+        if (layer && !layer.visible) return;
+
+        if (e.type === 'line') {
+          points.push(e.start, e.end);
+        } else if (e.type === 'rect' || e.type === 'roundedRect') {
+          const { center, width, height } = e;
+          points.push(
+            { x: center.x - width / 2, y: center.y - height / 2 },
+            { x: center.x + width / 2, y: center.y - height / 2 },
+            { x: center.x + width / 2, y: center.y + height / 2 },
+            { x: center.x - width / 2, y: center.y + height / 2 }
+          );
+        } else if (e.type === 'arc') {
+          const arc = e as any;
+          const sRad = arc.startAngle * (Math.PI / 180);
+          const eRad = arc.endAngle * (Math.PI / 180);
+          points.push(
+            { x: arc.center.x, y: arc.center.y },
+            { x: arc.center.x + arc.radius * Math.cos(sRad), y: arc.center.y + arc.radius * Math.sin(sRad) },
+            { x: arc.center.x + arc.radius * Math.cos(eRad), y: arc.center.y + arc.radius * Math.sin(eRad) }
+          );
+        }
+      });
+
+      let nearest: Point | null = null;
+      let minDist = threshold;
+
+      points.forEach(p => {
+        const d = Math.sqrt((p.x - pointer.x)**2 + (p.y - pointer.y)**2);
+        if (d < minDist) {
+          minDist = d;
+          nearest = p;
+        }
+      });
+      return nearest;
+    };
+
+    const updateSnapIndicator = (point: Point | null) => {
+      if (point) {
+        if (!snapIndicator) {
+          snapIndicator = new fabric.Rect({
+            width: 8 / fabricCanvas.getZoom(),
+            height: 8 / fabricCanvas.getZoom(),
+            fill: 'transparent',
+            stroke: '#00ff00',
+            strokeWidth: 2 / fabricCanvas.getZoom(),
+            selectable: false,
+            evented: false,
+            originX: 'center',
+            originY: 'center',
+          });
+          fabricCanvas.add(snapIndicator);
+        }
+        snapIndicator.set({ left: point.x, top: point.y });
+        snapIndicator.bringToFront();
+      } else {
+        if (snapIndicator) {
+          fabricCanvas.remove(snapIndicator);
+          snapIndicator = null;
+        }
+      }
+    };
 
     fabricCanvas.off('mouse:down');
     fabricCanvas.off('mouse:move');
@@ -136,7 +237,11 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     });
 
     fabricCanvas.on('mouse:down', (opt) => {
-      const pointer = fabricCanvas.getPointer(opt.e);
+      let pointer = fabricCanvas.getPointer(opt.e);
+      const snapPoint = findSnapPoint(pointer);
+      if (snapPoint) {
+        pointer = snapPoint;
+      }
       startPoint = { x: pointer.x, y: pointer.y };
 
       if (state.currentTool === 'pan' && opt.e.altKey) {
@@ -173,7 +278,13 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     });
 
     fabricCanvas.on('mouse:move', (opt) => {
-      const pointer = fabricCanvas.getPointer(opt.e);
+      let pointer = fabricCanvas.getPointer(opt.e);
+      const snapPoint = findSnapPoint(pointer);
+      if (snapPoint) {
+        pointer = snapPoint;
+      }
+      updateSnapIndicator(snapPoint);
+
       if (isDragging && startPoint) {
         if (state.currentTool === 'pan' && opt.e.altKey) {
           const e = opt.e as MouseEvent;
@@ -233,7 +344,12 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     });
 
     fabricCanvas.on('mouse:up', (opt) => {
-      const pointer = fabricCanvas.getPointer(opt.e);
+      let pointer = fabricCanvas.getPointer(opt.e);
+      const snapPoint = findSnapPoint(pointer);
+      if (snapPoint) {
+        pointer = snapPoint;
+      }
+      updateSnapIndicator(null);
       isDragging = false;
       fabricCanvas.selection = true;
       
@@ -324,10 +440,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           color: 'white',
           padding: '4px 8px',
           borderRadius: 4,
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          fontSize: '12px'
         }}>
-          dx: {Math.abs(state.distanceOverlay.p2.x - state.distanceOverlay.p1.x).toFixed(1)} | 
-          dy: {Math.abs(state.distanceOverlay.p2.y - state.distanceOverlay.p1.y).toFixed(1)}
+          {(() => {
+            const unit = state.model.unit === 'um' ? 'μm' : (state.model.unit === 'unitless' ? '' : ` ${state.model.unit}`);
+            return (
+              <>
+                dx: {Math.abs(state.distanceOverlay.p2.x - state.distanceOverlay.p1.x).toFixed(1)}{unit} | 
+                dy: {Math.abs(state.distanceOverlay.p2.y - state.distanceOverlay.p1.y).toFixed(1)}{unit}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

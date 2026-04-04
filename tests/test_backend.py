@@ -62,6 +62,39 @@ def test_area_calculation_overlapping_rects():
     area = calculate_area_from_planar_graph(drawing)
     assert area == 15000
 
+def test_dxf_export_joined_polyline():
+    from main import _create_dxf_doc
+    # 4 lines forming a 100x100 square
+    l1 = Line(id="l1", layerId="L1", type="line", start=Point(x=0, y=0), end=Point(x=100, y=0), visible=True)
+    l2 = Line(id="l2", layerId="L1", type="line", start=Point(x=100, y=0), end=Point(x=100, y=100), visible=True)
+    l3 = Line(id="l3", layerId="L1", type="line", start=Point(x=100, y=100), end=Point(x=0, y=100), visible=True)
+    l4 = Line(id="l4", layerId="L1", type="line", start=Point(x=0, y=100), end=Point(x=0, y=0), visible=True)
+    
+    drawing = DrawingModel(layers=[], entities=[l1, l2, l3, l4], closedRegions=[])
+    doc = _create_dxf_doc(drawing)
+    msp = doc.modelspace()
+    
+    # Check entities in modelspace
+    # In ezdxf, msp is iterable
+    entities = list(msp)
+    # Should have 1 LWPOLYLINE instead of 4 LINEs
+    assert len(entities) == 1
+    assert entities[0].dxftype() == 'LWPOLYLINE'
+    assert entities[0].is_closed == True
+    assert len(entities[0].get_points()) == 4
+
+def test_dxf_unit_header():
+    from main import _create_dxf_doc
+    # mm -> 4
+    drawing = DrawingModel(layers=[], entities=[], closedRegions=[], unit="mm")
+    doc = _create_dxf_doc(drawing)
+    assert doc.header['$INSUNITS'] == 4
+
+    # um -> 13
+    drawing2 = DrawingModel(layers=[], entities=[], closedRegions=[], unit="um")
+    doc2 = _create_dxf_doc(drawing2)
+    assert doc2.header['$INSUNITS'] == 13
+
 if __name__ == "__main__":
     pytest.main([__file__])
 
