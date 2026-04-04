@@ -27,7 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
               checked={layer.visible} 
               onChange={() => dispatch({ type: 'TOGGLE_LAYER_VISIBILITY', layerId: layer.id })} 
             />
-            <span style={{ fontWeight: state.activeLayerId === layer.id ? 'bold' : 'normal', color: '#444' }}>
+            <span style={{ flex: 1, fontWeight: state.activeLayerId === layer.id ? 'bold' : 'normal', color: '#444' }}>
               {layer.name}
             </span>
           </div>
@@ -179,14 +179,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
                 });
                 if (!res.ok) throw new Error("Calculation request failed");
                 const data = await res.json();
+                const area = data.area;
                 const suffix = state.model.unit === 'unitless' ? 'units' : unitDisplay;
-                dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Total Area: ${data.area.toFixed(2)} ${suffix}²`, type: 'success' } });
+                dispatch({ type: 'ADD_NOTIFICATION', notification: { 
+                  message: `Total Opening Area: ${area.toFixed(2)} ${suffix}²`, 
+                  type: 'success' 
+                } });
               } catch (e) {
                 dispatch({ type: 'ADD_NOTIFICATION', notification: { message: `Calculation failed: ${e}`, type: 'error' } });
               }
             }}
           >
-            Calculate Total Area
+            Calculate Total Opening Area
           </button>
       </div>
 

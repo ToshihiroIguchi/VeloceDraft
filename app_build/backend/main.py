@@ -145,12 +145,23 @@ def _add_rect(msp, entity):
 
 def _add_rounded_rect(msp, entity):
     c, w, h, r = entity.center, entity.width, entity.height, entity.rx
-    # Simplified approximation for DXF MVP
+    # Bullge for 90 degree corner is tan(90/4) = 0.41421356
+    b = 0.41421356
+    
+    # Points are (x, y, start_width, end_width, bulge)
+    # Winding: Counter-clockwise
+    x0, x1 = c.x - w/2, c.x + w/2
+    y0, y1 = c.y - h/2, c.y + h/2
+    
     points = [
-        (c.x - w/2 + r, c.y - h/2), (c.x + w/2 - r, c.y - h/2),
-        (c.x + w/2, c.y - h/2 + r), (c.x + w/2, c.y + h/2 - r),
-        (c.x + w/2 - r, c.y + h/2), (c.x - w/2 + r, c.y + h/2),
-        (c.x - w/2, c.y + h/2 - r), (c.x - w/2, c.y - h/2 + r)
+        (x0 + r, y0, 0, 0, 0), # Bottom-left start of straight
+        (x1 - r, y0, 0, 0, b), # Bottom-right start of arc
+        (x1, y0 + r, 0, 0, 0), # Right-bottom start of straight
+        (x1, y1 - r, 0, 0, b), # Right-top start of arc
+        (x1 - r, y1, 0, 0, 0), # Top-right start of straight
+        (x0 + r, y1, 0, 0, b), # Top-left start of arc
+        (x0, y1 - r, 0, 0, 0), # Left-top start of straight
+        (x0, y0 + r, 0, 0, b), # Left-bottom start of arc
     ]
     msp.add_lwpolyline(points, close=True)
 

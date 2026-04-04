@@ -22,6 +22,13 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       selection: true,
       preserveObjectStacking: true,
     });
+
+    // High contrast selection style
+    fabric.Object.prototype.transparentCorners = false;
+    fabric.Object.prototype.cornerColor = '#00d2ff';
+    fabric.Object.prototype.borderColor = '#00d2ff';
+    fabric.Object.prototype.cornerSize = 8;
+
     setFabricCanvas(canvas);
 
     const handleResize = () => {
@@ -43,8 +50,6 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
   useEffect(() => {
     if (!fabricCanvas) return;
     
-    // Naive sync: clear and redraw. For MVP this is acceptable.
-    // In a real app we would diff the entities.
     fabricCanvas.clear();
     
     state.model.entities.forEach(entity => {
@@ -58,10 +63,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           top: entity.center.y - entity.height / 2,
           width: entity.width,
           height: entity.height,
-          rx: entity.type === 'roundedRect' ? (entity as RoundedRect).rx : 0,
-          ry: entity.type === 'roundedRect' ? (entity as RoundedRect).ry : 0,
-          fill: 'rgba(0, 100, 250, 0.3)',
-          stroke: 'blue',
+          rx: entity.type === 'roundedRect' ? entity.rx : 0,
+          ry: entity.type === 'roundedRect' ? entity.ry : 0,
+          fill: 'rgba(0, 0, 0, 0.4)',
+          stroke: 'black',
           strokeWidth: 2,
           selectable: state.currentTool === 'select',
         });
@@ -72,7 +77,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       
       if (entity.type === 'line') {
         const obj = new fabric.Line([entity.start.x, entity.start.y, entity.end.x, entity.end.y], {
-          stroke: 'blue',
+          stroke: 'black',
           strokeWidth: 2,
           selectable: state.currentTool === 'select',
         });
@@ -91,10 +96,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
                 top: source.center.y - source.height/2 + entity.origin.y + (j * entity.pitchY),
                 width: source.width,
                 height: source.height,
-                rx: source.type === 'roundedRect' ? (source as RoundedRect).rx : 0,
-                ry: source.type === 'roundedRect' ? (source as RoundedRect).ry : 0,
-                fill: 'rgba(250, 100, 0, 0.3)',
-                stroke: 'orange',
+                rx: source.type === 'roundedRect' ? source.rx : 0,
+                ry: source.type === 'roundedRect' ? source.ry : 0,
+                fill: 'rgba(0, 0, 0, 0.4)',
+                stroke: 'black',
                 strokeWidth: 2,
                 selectable: state.currentTool === 'select',
               });
@@ -117,8 +122,6 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         const x2 = arc.center.x + arc.radius * Math.cos(eRad);
         const y2 = arc.center.y + arc.radius * Math.sin(eRad);
 
-        // Determine if large arc and sweep flag
-        // For fillet we always want the "small" arc (< 180 deg)
         let diff = (arc.endAngle - arc.startAngle) % 360;
         if (diff < -180) diff += 360;
         if (diff > 180) diff -= 360;
@@ -130,7 +133,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         
         fabricCanvas.add(new fabric.Path(pathData, {
           fill: 'transparent',
-          stroke: 'blue',
+          stroke: 'black',
           strokeWidth: 2,
           selectable: state.currentTool === 'select',
           // @ts-ignore
@@ -273,8 +276,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           height: 0,
           rx: state.filletRadius,
           ry: state.filletRadius,
-          fill: 'rgba(0, 100, 250, 0.3)',
-          stroke: 'blue',
+          fill: 'rgba(0, 0, 0, 0.4)',
+          stroke: 'black',
           strokeWidth: 2,
           selectable: false,
         });
@@ -284,7 +287,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       if (state.currentTool === 'line') {
         isDragging = true;
         activeShape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-          stroke: 'blue',
+          stroke: 'black',
           strokeWidth: 2,
           selectable: false,
         });
