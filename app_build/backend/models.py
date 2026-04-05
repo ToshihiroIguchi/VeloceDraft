@@ -45,6 +45,8 @@ class Arc(EntityBase):
     radius: float
     startAngle: float # in degrees
     endAngle: float # in degrees
+    start: Optional[Point] = None
+    end: Optional[Point] = None
 
 Entity = Union[RoundedRect, Rect, ElectrodeArray, Line, Arc]
 
@@ -55,7 +57,7 @@ class Layer(BaseModel):
 
 class ClosedRegion(BaseModel):
     id: str
-    boundarySegments: List[dict] # Simplified for now
+    vertices: List[Point]
     area: float
     sourceEntityIds: List[str]
     containsArcs: bool

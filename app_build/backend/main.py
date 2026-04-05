@@ -165,12 +165,12 @@ def _add_rounded_rect(msp, entity):
     ]
     msp.add_lwpolyline(points, close=True)
 
-from geometry_utils import calculate_area_from_planar_graph, fillet_geometry
+from geometry_utils import calculate_area_from_planar_graph, fillet_geometry, batch_fillet_geometry
 
 @app.post("/api/area/calculate")
 async def calculate_area(drawing: DrawingModel):
-    total_area = calculate_area_from_planar_graph(drawing)
-    return {"area": total_area}
+    total_area, regions = calculate_area_from_planar_graph(drawing)
+    return {"area": total_area, "regions": [r.model_dump() for r in regions]}
 
 
 def _get_entity_area(e):
@@ -232,4 +232,22 @@ async def fillet_lines(input_data: dict):
         "message": f"Fillet applied with R={radius}",
         "entities": [trimmed1.model_dump(), trimmed2.model_dump(), arc_dict],
         "originalIds": [line1.id, line2.id]
+    }
+
+@app.post("/api/fillet/batch")
+async def fillet_batch(input_data: dict):
+    line_dicts = input_data.get("lines", [])
+    radius = input_data.get("radius", 10.0)
+    
+    if not line_dicts:
+        raise HTTPException(status_code=400, detail="No lines provided")
+        
+    lines = [Line(**l) for l in line_dicts]
+    
+    trimmed_lines, new_arcs, original_ids = batch_fillet_geometry(lines, radius)
+    
+    return {
+        "message": f"Batch Fillet applied to {len(original_ids)} lines with R={radius}",
+        "entities": [l.model_dump() for l in trimmed_lines] + new_arcs,
+        "originalIds": original_ids
     }

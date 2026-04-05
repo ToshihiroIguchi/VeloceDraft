@@ -17,7 +17,8 @@ export type CadAction =
   | { type: 'SET_SERVER_STATUS'; status: 'online' | 'offline' }
   | { type: 'SET_UNIT'; unit: CadState['model']['unit'] }
   | { type: 'SET_FILLET_RADIUS'; radius: number }
-  | { type: 'REPLACE_ENTITIES'; originalIds: string[]; newEntities: Entity[] };
+  | { type: 'REPLACE_ENTITIES'; originalIds: string[]; newEntities: Entity[] }
+  | { type: 'SET_CLOSED_REGIONS'; regions: CadState['model']['closedRegions'] };
 
 export const initialCadState: CadState = {
   model: {
@@ -123,6 +124,14 @@ export function cadReducer(state: CadState, action: CadAction): CadState {
           ]
         },
         selectedEntityIds: []
+      };
+    case 'SET_CLOSED_REGIONS':
+      return {
+        ...state,
+        model: {
+          ...state.model,
+          closedRegions: action.regions
+        }
       };
     default:
       return state;

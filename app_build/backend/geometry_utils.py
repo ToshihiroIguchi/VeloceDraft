@@ -1,21 +1,23 @@
 import math
 import uuid
 from typing import List, Tuple, Dict, Set
-from models import Point, Entity, DrawingModel, Line
+from models import Point, Entity, DrawingModel, Line, ClosedRegion
 
 class Vector2:
     def __init__(self, x: float, y: float):
-        self.x = round(x, 6)
-        self.y = round(y, 6)
-
+        self.x = round(float(x), 6)
+        self.y = round(float(y), 6)
+        
+    def __eq__(self, other):
+        if not isinstance(other, Vector2):
+            return False
+        return self.x == other.x and self.y == other.y
+        
     def __hash__(self):
         return hash((self.x, self.y))
 
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
-
     def __repr__(self):
-        return f"({self.x}, {self.y})"
+        return f"V({self.x}, {self.y})"
 
     def to_tuple(self) -> Tuple[float, float]:
         return (self.x, self.y)
@@ -161,21 +163,38 @@ def split_segments(segments: List[Tuple[Vector2, Vector2]]) -> List[Tuple[Vector
                 
     return atomic_segments
 
-def calculate_area_from_planar_graph(drawing: DrawingModel) -> float:
+def calculate_area_from_planar_graph(drawing: DrawingModel, snap_tolerance: float = 1e-4) -> Tuple[float, List[ClosedRegion]]:
     segments = get_segments(drawing)
-    if not segments: return 0.0
+    if not segments: return 0.0, []
     
     atomic = split_segments(segments)
     
+    # Node merging: map each unique-ish point to a canonical Vector2
+    canonical_nodes: Dict[Vector2, Vector2] = {}
+    def get_canonical(p: Vector2) -> Vector2:
+        for node in canonical_nodes:
+            if dist(node, p) < snap_tolerance:
+                return node
+        canonical_nodes[p] = p
+        return p
+
     # Graph: node -> list of (neighbor_node, angle)
     graph: Dict[Vector2, List[Tuple[Vector2, float]]] = {}
     
-    for p1, p2 in atomic:
+    for p1_raw, p2_raw in atomic:
+        p1 = get_canonical(p1_raw)
+        p2 = get_canonical(p2_raw)
+        
         if p1 == p2: continue
+        
         angle12 = math.atan2(p2.y - p1.y, p2.x - p1.x)
         angle21 = math.atan2(p1.y - p2.y, p1.x - p2.x)
-        graph.setdefault(p1, []).append((p2, angle12))
-        graph.setdefault(p2, []).append((p1, angle21))
+        
+        # Avoid duplicate edges between same canonical nodes
+        if not any(nb == p2 for nb, _ in graph.get(p1, [])):
+            graph.setdefault(p1, []).append((p2, angle12))
+        if not any(nb == p1 for nb, _ in graph.get(p2, [])):
+            graph.setdefault(p2, []).append((p1, angle21))
         
     # Sort outgoing edges by angle for each node
     for node in graph:
@@ -183,6 +202,7 @@ def calculate_area_from_planar_graph(drawing: DrawingModel) -> float:
         
     visited_edges: Set[Tuple[Vector2, Vector2]] = set()
     total_area = 0.0
+    regions = []
     
     # Traverse all directed edges exactly once
     for u in graph:
@@ -198,20 +218,15 @@ def calculate_area_from_planar_graph(drawing: DrawingModel) -> float:
                 visited_edges.add((curr_u, curr_v))
                 face_nodes.append(curr_u)
                 
-                # Move to next node: pick the edge from curr_v that is 
-                # immediate counter-clockwise from curr_v -> curr_u
                 neighbors = graph[curr_v]
-                # Angle of curr_v -> curr_u
-                rev_angle = math.atan2(curr_u.y - curr_v.y, curr_u.x - curr_v.x)
-                
-                # Find index of reverse edge in sorted list
                 idx = -1
                 for i, (nb, ang) in enumerate(neighbors):
                     if nb == curr_u:
                         idx = i
                         break
                 
-                # The next CCW edge is the one at index - 1
+                if idx == -1: break # Should not happen in planar graph
+                
                 next_node, _ = neighbors[idx - 1]
                 curr_u, curr_v = curr_v, next_node
                 
@@ -224,14 +239,17 @@ def calculate_area_from_planar_graph(drawing: DrawingModel) -> float:
                     area += (p_i.x * p_j.y) - (p_j.x * p_i.y)
                 area *= 0.5
                 
-                # area > 0 means it's a "hole" or internal face (CCW winding)
-                # area < 0 for the infinite face (CW winding)
-                # Note: Shoelace sign depends on coordinate system and CCW/CW choice.
-                # In most math libs, positive is CCW. In Face discovery, inner faces are CCW if picking next CCW.
-                if area > 0:
+                if area > 1e-6: # Filter out tiny numerical noise faces
                     total_area += area
+                    regions.append(ClosedRegion(
+                        id=str(uuid.uuid4()),
+                        vertices=[Point(x=p.x, y=p.y) for p in face_nodes],
+                        area=round(area, 6),
+                        sourceEntityIds=[],
+                        containsArcs=False
+                    ))
                     
-    return total_area
+    return round(total_area, 6), regions
 
 def join_line_entities(lines: List[Line], tolerance: float = 1e-6) -> List[List[Vector2]]:
     if not lines: return []
@@ -356,5 +374,112 @@ def fillet_geometry(line1: Line, line2: Line, radius: float) -> Tuple[Line, Line
         "radius": radius,
         "startAngle": angle1,
         "endAngle": angle2,
+        "start": {"x": T1.x, "y": T1.y},
+        "end": {"x": T2.x, "y": T2.y},
         "visible": True
     }
+
+def batch_fillet_geometry(lines: List[Line], radius: float) -> Tuple[List[Line], List[dict], List[str]]:
+    """Applies fillet to all corners in a set of connected lines."""
+    if not lines: return [], [], []
+    
+    # 1. Join lines into paths
+    paths = join_line_entities(lines)
+    all_trimmed_lines = []
+    all_new_arcs = []
+    original_ids = [l.id for l in lines]
+    
+    for path in paths:
+        if len(path) < 3:
+            # Not enough points for a corner, just recreate original line segments
+            # (In a real system, we'd maps paths back to original entity objects)
+            for i in range(len(path)-1):
+                all_trimmed_lines.append(Line(
+                    id=str(uuid.uuid4()), 
+                    layerId=lines[0].layerId, 
+                    type="line", 
+                    start=Point(x=path[i].x, y=path[i].y), 
+                    end=Point(x=path[i+1].x, y=path[i+1].y), 
+                    visible=True
+                ))
+            continue
+            
+        # 2. Process corners sequentially
+        # current_pts will be modified during trimming
+        current_pts = [Vector2(p.x, p.y) for p in path]
+        num_corners = len(current_pts) - 2 # e.g. 3 points = 1 corner
+        
+        new_path_arcs = []
+        
+        # We need to check if the path is closed
+        is_closed = (current_pts[0] == current_pts[-1])
+        if is_closed and len(current_pts) > 3:
+            # Special case for closed loop: fillet the final joint too
+            # Loop around by prepending the second to last point
+            loop_pts = [current_pts[-2]] + current_pts[:-1] + [current_pts[1]]
+            # 0: p_{n-1}, 1: p_0, 2: p_1, ..., n-1: p_{n-2}, n: p_{n-1}, n+1: p_0
+        else:
+            loop_pts = current_pts
+
+        path_arcs = []
+        # Temporary storage for trimmed points for each joint
+        # joint_i (between seg i and i+1) results in T_end(i) and T_start(i+1)
+        trimmed_pts = {i: {"end": loop_pts[i], "start": loop_pts[i]} for i in range(len(loop_pts))}
+
+        for i in range(1, len(loop_pts) - 1):
+            p_prev = loop_pts[i-1]
+            p_curr = loop_pts[i]
+            p_next = loop_pts[i+1]
+            
+            # Temporary lines for calculation
+            l1 = Line(id="temp", layerId="L", type="line", start=Point(x=p_prev.x, y=p_prev.y), end=Point(x=p_curr.x, y=p_curr.y), visible=True)
+            l2 = Line(id="temp", layerId="L", type="line", start=Point(x=p_curr.x, y=p_curr.y), end=Point(x=p_next.x, y=p_next.y), visible=True)
+            
+            res = fillet_geometry(l1, l2, radius)
+            if res:
+                t1, t2, arc_dict = res
+                # t1.start is the tangent point on L1
+                # t2.start is the tangent point on L2
+                # We need the points furthest from intersection relative to the corner
+                # In fillet_geometry, trimmed1.start is the tangent point.
+                
+                # Check if radius is too big for the segments
+                # Distance from corner p_curr to tangent points T1, T2
+                d1 = math.sqrt((t1.start.x - p_curr.x)**2 + (t1.start.y - p_curr.y)**2)
+                d2 = math.sqrt((t2.start.x - p_curr.x)**2 + (t2.start.y - p_curr.y)**2)
+                
+                seg1_len = math.sqrt((p_curr.x - p_prev.x)**2 + (p_curr.y - p_prev.y)**2)
+                seg2_len = math.sqrt((p_curr.x - p_next.x)**2 + (p_curr.y - p_next.y)**2)
+                
+                if d1 < seg1_len and d2 < seg2_len:
+                    trimmed_pts[i-1]["end"] = Vector2(t1.start.x, t1.start.y)
+                    trimmed_pts[i]["start"] = Vector2(t2.start.x, t2.start.y)
+                    path_arcs.append(arc_dict)
+                else:
+                    # R too large for this corner, keep original
+                    trimmed_pts[i-1]["end"] = p_curr
+                    trimmed_pts[i]["start"] = p_curr
+            else:
+                # Parallel lines or invalid, skip
+                trimmed_pts[i-1]["end"] = p_curr
+                trimmed_pts[i]["start"] = p_curr
+
+        # 3. Reconstruct lines from trimmed points
+        for i in range(len(loop_pts) - 1):
+            p_start = trimmed_pts[i]["start"]
+            p_end = trimmed_pts[i]["end"]
+            
+            # Only add segments with length > tool tolerance
+            if math.sqrt((p_end.x - p_start.x)**2 + (p_end.y - p_start.y)**2) > 1e-6:
+                all_trimmed_lines.append(Line(
+                    id=str(uuid.uuid4()),
+                    layerId=lines[0].layerId,
+                    type="line",
+                    start=Point(x=p_start.x, y=p_start.y),
+                    end=Point(x=p_end.x, y=p_end.y),
+                    visible=True
+                ))
+        
+        all_new_arcs.extend(path_arcs)
+        
+    return all_trimmed_lines, all_new_arcs, original_ids

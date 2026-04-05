@@ -180,7 +180,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
                 if (!res.ok) throw new Error("Calculation request failed");
                 const data = await res.json();
                 const area = data.area;
+                const regions = data.regions || [];
                 const suffix = state.model.unit === 'unitless' ? 'units' : unitDisplay;
+                
+                dispatch({ type: 'SET_CLOSED_REGIONS', regions });
                 dispatch({ type: 'ADD_NOTIFICATION', notification: { 
                   message: `Total Opening Area: ${area.toFixed(2)} ${suffix}²`, 
                   type: 'success' 

@@ -46,17 +46,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({ state, dispatch }) => {
 
   const handleFillet = async () => {
     const selectedLines = state.model.entities.filter(e => state.selectedEntityIds.includes(e.id) && e.type === 'line');
-    if (selectedLines.length !== 2) {
-      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: "Please select exactly 2 lines for Fillet", type: 'info' } });
+    if (selectedLines.length < 2) {
+      dispatch({ type: 'ADD_NOTIFICATION', notification: { message: "Please select at least 2 connected lines for Fillet", type: 'info' } });
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/fillet?radius=10.0`, {
+      const res = await fetch(`${API_BASE_URL}/api/fillet/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          line1: selectedLines[0],
-          line2: selectedLines[1],
+          lines: selectedLines,
           radius: state.filletRadius
         })
       });

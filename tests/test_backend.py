@@ -35,7 +35,9 @@ def test_area_calculation_rect_entities():
     from geometry_utils import calculate_area_from_planar_graph
     rect = Rect(id="r1", layerId="L1", type="rect", center=Point(x=50, y=50), width=100, height=100, visible=True)
     drawing = DrawingModel(layers=[], entities=[rect], closedRegions=[])
-    assert calculate_area_from_planar_graph(drawing) == 10000
+    area, regions = calculate_area_from_planar_graph(drawing)
+    assert area == 10000
+    assert len(regions) >= 1
 
 def test_area_calculation_separate_lines():
     from geometry_utils import calculate_area_from_planar_graph
@@ -46,8 +48,9 @@ def test_area_calculation_separate_lines():
     l4 = Line(id="l4", layerId="L1", type="line", start=Point(x=0, y=100), end=Point(x=0, y=0), visible=True)
     
     drawing = DrawingModel(layers=[], entities=[l1, l2, l3, l4], closedRegions=[])
-    area = calculate_area_from_planar_graph(drawing)
+    area, regions = calculate_area_from_planar_graph(drawing)
     assert area == 10000
+    assert len(regions) == 1
 
 def test_area_calculation_overlapping_rects():
     from geometry_utils import calculate_area_from_planar_graph
@@ -59,8 +62,9 @@ def test_area_calculation_overlapping_rects():
     r1 = Rect(id="r1", layerId="L1", type="rect", center=Point(x=50, y=50), width=100, height=100, visible=True)
     r2 = Rect(id="r2", layerId="L1", type="rect", center=Point(x=100, y=50), width=100, height=100, visible=True)
     drawing = DrawingModel(layers=[], entities=[r1, r2], closedRegions=[])
-    area = calculate_area_from_planar_graph(drawing)
+    area, regions = calculate_area_from_planar_graph(drawing)
     assert area == 15000
+    assert len(regions) == 3 # Two outer parts and one overlapping part
 
 def test_dxf_export_joined_polyline():
     from main import _create_dxf_doc
@@ -94,6 +98,21 @@ def test_dxf_unit_header():
     drawing2 = DrawingModel(layers=[], entities=[], closedRegions=[], unit="um")
     doc2 = _create_dxf_doc(drawing2)
     assert doc2.header['$INSUNITS'] == 13
+
+def test_batch_fillet():
+    from geometry_utils import batch_fillet_geometry
+    # 3 lines forming a U-shape: (0,100)-(0,0)-(100,0)-(100,100)
+    l1 = Line(id="l1", layerId="L1", type="line", start=Point(x=0, y=100), end=Point(x=0, y=0), visible=True)
+    l2 = Line(id="l2", layerId="L1", type="line", start=Point(x=0, y=0), end=Point(x=100, y=0), visible=True)
+    l3 = Line(id="l3", layerId="L1", type="line", start=Point(x=100, y=0), end=Point(x=100, y=100), visible=True)
+    
+    # Apply R=10
+    trimmed, arcs, original_ids = batch_fillet_geometry([l1, l2, l3], 10.0)
+    
+    # Should have 3 trimmed lines and 2 arcs
+    assert len(trimmed) == 3
+    assert len(arcs) == 2
+    assert len(original_ids) == 3
 
 if __name__ == "__main__":
     pytest.main([__file__])

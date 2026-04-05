@@ -57,7 +57,7 @@ export type Layer = {
 
 export type ClosedRegion = {
   id: string;
-  boundarySegments: any[]; // Simplified
+  vertices: Point[];
   area: number;
   sourceEntityIds: string[];
   containsArcs: boolean;

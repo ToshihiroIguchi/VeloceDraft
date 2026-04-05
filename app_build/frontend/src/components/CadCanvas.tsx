@@ -12,6 +12,21 @@ interface CadCanvasProps {
 export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<fabric.Canvas | null>(null);
+  
+  const updateAllStrokeWidths = (canvas: fabric.Canvas) => {
+    const zoom = canvas.getZoom();
+    canvas.getObjects().forEach(obj => {
+      if (obj.stroke) {
+        // Base width: 2 for entities, 1 for filled regions (polygons)
+        const baseWidth = obj.type === 'polygon' ? 1/zoom : 2/zoom;
+        obj.set('strokeWidth', baseWidth);
+      }
+    });
+    canvas.renderAll();
+  };
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const isSyncingRef = useRef(false);
 
   // Initialize Fabric Canvas
   useEffect(() => {
@@ -50,6 +65,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
   useEffect(() => {
     if (!fabricCanvas) return;
     
+    isSyncingRef.current = true;
     fabricCanvas.clear();
     
     state.model.entities.forEach(entity => {
@@ -68,6 +84,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           fill: 'rgba(0, 0, 0, 0.4)',
           stroke: 'black',
           strokeWidth: 2,
+          strokeUniform: true,
           selectable: state.currentTool === 'select',
         });
         // @ts-ignore
@@ -79,6 +96,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         const obj = new fabric.Line([entity.start.x, entity.start.y, entity.end.x, entity.end.y], {
           stroke: 'black',
           strokeWidth: 2,
+          strokeUniform: true,
+          strokeLineCap: 'round',
+          strokeLineJoin: 'round',
           selectable: state.currentTool === 'select',
         });
         // @ts-ignore
@@ -101,6 +121,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
                 fill: 'rgba(0, 0, 0, 0.4)',
                 stroke: 'black',
                 strokeWidth: 2,
+                strokeUniform: true,
+                strokeLineCap: 'round',
+                strokeLineJoin: 'round',
                 selectable: state.currentTool === 'select',
               });
               // @ts-ignore
@@ -117,10 +140,12 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         const arc = entity as any;
         const sRad = arc.startAngle * (Math.PI / 180);
         const eRad = arc.endAngle * (Math.PI / 180);
-        const x1 = arc.center.x + arc.radius * Math.cos(sRad);
-        const y1 = arc.center.y + arc.radius * Math.sin(sRad);
-        const x2 = arc.center.x + arc.radius * Math.cos(eRad);
-        const y2 = arc.center.y + arc.radius * Math.sin(eRad);
+        
+        // Use backend points if available, otherwise fallback to angle-based calculation
+        const x1 = arc.start ? arc.start.x : arc.center.x + arc.radius * Math.cos(sRad);
+        const y1 = arc.start ? arc.start.y : arc.center.y + arc.radius * Math.sin(sRad);
+        const x2 = arc.end ? arc.end.x : arc.center.x + arc.radius * Math.cos(eRad);
+        const y2 = arc.end ? arc.end.y : arc.center.y + arc.radius * Math.sin(eRad);
 
         let diff = (arc.endAngle - arc.startAngle) % 360;
         if (diff < -180) diff += 360;
@@ -135,11 +160,29 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           fill: 'transparent',
           stroke: 'black',
           strokeWidth: 2,
+          strokeUniform: true,
+          strokeLineCap: 'round',
+          strokeLineJoin: 'round',
           selectable: state.currentTool === 'select',
           // @ts-ignore
           id: arc.id
         }));
       }
+    });
+    
+    // Sync closedRegions (calculated faces)
+    state.model.closedRegions.forEach(region => {
+      const poly = new fabric.Polygon(region.vertices, {
+        fill: 'rgba(0, 150, 255, 0.15)',
+        stroke: 'rgba(0, 150, 255, 0.3)',
+        strokeWidth: 1,
+        strokeUniform: true,
+        selectable: false,
+        evented: false,
+      });
+      // @ts-ignore
+      poly.id = region.id;
+      fabricCanvas.add(poly);
     });
     
     // Restore selection
@@ -158,6 +201,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     }
 
     fabricCanvas.renderAll();
+    updateAllStrokeWidths(fabricCanvas);
+    isSyncingRef.current = false;
   }, [state.model, state.currentTool, state.selectedEntityIds, fabricCanvas]);
 
   // Handle Mouse Events for Tools
@@ -221,7 +266,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
             height: 8 / fabricCanvas.getZoom(),
             fill: 'transparent',
             stroke: '#00ff00',
-            strokeWidth: 2 / fabricCanvas.getZoom(),
+            strokeWidth: 2,
+            strokeUniform: true,
             selectable: false,
             evented: false,
             originX: 'center',
@@ -250,6 +296,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
       if (zoom > 20) zoom = 20;
       if (zoom < 0.01) zoom = 0.01;
       fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      updateAllStrokeWidths(fabricCanvas);
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
@@ -279,6 +326,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
           fill: 'rgba(0, 0, 0, 0.4)',
           stroke: 'black',
           strokeWidth: 2,
+          strokeUniform: true,
           selectable: false,
         });
         fabricCanvas.add(activeShape);
@@ -289,6 +337,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
         activeShape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
           stroke: 'black',
           strokeWidth: 2,
+          strokeUniform: true,
           selectable: false,
         });
         fabricCanvas.add(activeShape);
@@ -437,13 +486,93 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ state, dispatch }) => {
     // Setup selection syncing
     fabricCanvas.on('selection:created', handleSelection);
     fabricCanvas.on('selection:updated', handleSelection);
-    fabricCanvas.on('selection:cleared', () => dispatch({ type: 'SET_SELECTED', entityIds: [] }));
+    fabricCanvas.on('selection:cleared', () => {
+      if (isSyncingRef.current) return;
+      if (stateRef.current.selectedEntityIds.length > 0) {
+        dispatch({ type: 'SET_SELECTED', entityIds: [] });
+      }
+    });
+
+    fabricCanvas.on('object:modified', (e) => {
+      if (isSyncingRef.current) return;
+      const obj = e.target;
+      if (!obj) return;
+      
+      // @ts-ignore
+      const rawId = obj.id as string;
+      if (!rawId) return;
+      
+      const entityId = rawId.split('_')[0];
+      const entity = stateRef.current.model.entities.find(en => en.id === entityId);
+      if (!entity) return;
+
+      const newWidth = Math.round((obj.width || 0) * (obj.scaleX || 1) * 100) / 100;
+      const newHeight = Math.round((obj.height || 0) * (obj.scaleY || 1) * 100) / 100;
+      const newCenterX = Math.round(((obj.left || 0) + newWidth / 2) * 100) / 100;
+      const newCenterY = Math.round(((obj.top || 0) + newHeight / 2) * 100) / 100;
+
+      if (entity.type === 'rect' || entity.type === 'roundedRect') {
+        dispatch({
+          type: 'UPDATE_ENTITY',
+          id: entityId,
+          updates: {
+            center: { x: newCenterX, y: newCenterY },
+            width: newWidth,
+            height: newHeight,
+          }
+        });
+      } else if (entity.type === 'line') {
+        const line = obj as fabric.Line;
+        // @ts-ignore
+        const actualPoints = line.calcLinePoints();
+        const matrix = line.calcTransformMatrix();
+        const pStart = fabric.util.transformPoint(new fabric.Point(actualPoints.x1, actualPoints.y1), matrix);
+        const pEnd = fabric.util.transformPoint(new fabric.Point(actualPoints.x2, actualPoints.y2), matrix);
+
+        dispatch({
+          type: 'UPDATE_ENTITY',
+          id: entityId,
+          updates: {
+            start: { x: Math.round(pStart.x * 100) / 100, y: Math.round(pStart.y * 100) / 100 },
+            end: { x: Math.round(pEnd.x * 100) / 100, y: Math.round(pEnd.y * 100) / 100 }
+          }
+        });
+      } else if (entity.type === 'electrodeArray') {
+        const arr = entity as any;
+        // @ts-ignore
+        if (obj.isPattern) {
+          const parts = rawId.split('_');
+          const i = parseInt(parts[1]);
+          const j = parseInt(parts[2]);
+          
+          const source = stateRef.current.model.entities.find(en => en.id === arr.sourceId) as any;
+          if (source) {
+            const newOriginX = (obj.left || 0) - (source.center.x - source.width/2) - (i * arr.pitchX) - (j % 2 === 1 ? arr.staggerX : 0);
+            const newOriginY = (obj.top || 0) - (source.center.y - source.height/2) - (j * arr.pitchY);
+            
+            dispatch({
+              type: 'UPDATE_ENTITY',
+              id: entityId,
+              updates: {
+                origin: { x: Math.round(newOriginX * 100) / 100, y: Math.round(newOriginY * 100) / 100 }
+              }
+            });
+          }
+        }
+      }
+    });
 
     function handleSelection(opt: fabric.IEvent) {
+      if (isSyncingRef.current) return;
       // @ts-ignore
       const ids = opt.selected?.map(o => o.id?.split('_')[0]).filter(id => id) || [];
       const uniqueIds = Array.from(new Set(ids));
-      dispatch({ type: 'SET_SELECTED', entityIds: uniqueIds });
+      
+      // Stop infinite loop by checking if selection actually changed
+      const currentIds = stateRef.current.selectedEntityIds;
+      if (uniqueIds.length !== currentIds.length || !uniqueIds.every(id => currentIds.includes(id))) {
+        dispatch({ type: 'SET_SELECTED', entityIds: uniqueIds });
+      }
     }
 
   }, [fabricCanvas, state.currentTool, state.activeLayerId, dispatch]);
