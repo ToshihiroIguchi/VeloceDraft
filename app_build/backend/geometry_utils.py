@@ -422,9 +422,9 @@ def batch_fillet_geometry(lines: List[Line], radius: float) -> Tuple[List[Line],
             loop_pts = current_pts
 
         path_arcs = []
-        # Temporary storage for trimmed points for each joint
-        # joint_i (between seg i and i+1) results in T_end(i) and T_start(i+1)
-        trimmed_pts = {i: {"end": loop_pts[i], "start": loop_pts[i]} for i in range(len(loop_pts))}
+        # 3. Initialize trimmed_pts for each segment (from loop_pts[i] to loop_pts[i+1])
+        # N points => N-1 segments
+        trimmed_pts = {i: {"start": loop_pts[i], "end": loop_pts[i+1]} for i in range(len(loop_pts) - 1)}
 
         for i in range(1, len(loop_pts) - 1):
             p_prev = loop_pts[i-1]
